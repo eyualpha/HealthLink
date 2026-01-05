@@ -1,35 +1,50 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import { Login } from './components/Login';
+import { DoctorDashboard } from './components/DoctorDashboard';
+import { PatientDashboard } from './components/PatientDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
+import { NurseDashboard } from './components/NurseDashboard';
 
-function App() {
-  const [count, setCount] = useState(0)
+export type UserRole = 'doctor' | 'nurse' | 'patient' | 'admin';
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
 }
 
-export default App
+function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {currentUser.role === 'doctor' && (
+        <DoctorDashboard user={currentUser} onLogout={handleLogout} />
+      )}
+      {currentUser.role === 'nurse' && (
+        <NurseDashboard user={currentUser} onLogout={handleLogout} />
+      )}
+      {currentUser.role === 'patient' && (
+        <PatientDashboard user={currentUser} onLogout={handleLogout} />
+      )}
+      {currentUser.role === 'admin' && (
+        <AdminDashboard user={currentUser} onLogout={handleLogout} />
+      )}
+    </div>
+  );
+}
+
+export default App;
