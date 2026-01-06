@@ -1,33 +1,18 @@
 import { useState } from 'react';
 import { Login } from './components/Login';
 import { DoctorDashboard } from './components/DoctorDashboard';
+import { NurseDashboard } from './components/NurseDashboard';
 import { PatientDashboard } from './components/PatientDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
-import { NurseDashboard } from './components/NurseDashboard';
-
-export type UserRole = 'doctor' | 'nurse' | 'patient' | 'admin';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-}
+import type { User } from './types';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-  };
+  const handleLogin = (user: User) => setCurrentUser(user);
+  const handleLogout = () => setCurrentUser(null);
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-  };
-
-  if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
-  }
+  if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-gray-50">

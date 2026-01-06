@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User } from '../App';
+import type { User } from '../types';
 import { DashboardLayout } from './DashboardLayout';
 import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'lucide-react';
 

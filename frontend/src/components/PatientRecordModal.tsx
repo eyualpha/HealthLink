@@ -1,5 +1,6 @@
 import { X, AlertCircle, Pill, Activity, Syringe, TestTube } from 'lucide-react';
-import { PatientRecord } from './PatientRecords';
+import type { PatientRecord } from './PatientRecords';
+
 
 interface PatientRecordModalProps {
   patient: PatientRecord;
@@ -63,7 +64,7 @@ export function PatientRecordModal({ patient, onClose, userRole }: PatientRecord
             <section className="mb-6">
               <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                   <div>
                     <div className="text-red-900 mb-2">Allergies</div>
                     <div className="flex flex-wrap gap-2">

@@ -1,6 +1,6 @@
-import { User } from '../App';
 import { Activity, LogOut, Bell } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { User } from '../types';
 
 interface MenuItem {
   id: string;
@@ -35,7 +35,7 @@ export function DashboardLayout({
               <Activity className="w-6 h-6 text-blue-900" />
             </div>
             <div>
-              <div className="text-white">HealthLink</div>
+              <div className="text-white font-semibold">HealthLink</div>
               <div className="text-blue-300 text-sm">EHR System</div>
             </div>
           </div>
@@ -78,26 +78,22 @@ export function DashboardLayout({
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-gray-900">Welcome, {user.name}</h1>
+              <h1 className="text-gray-900 text-xl font-semibold">Welcome, {user.name}</h1>
               <p className="text-gray-500">Manage your healthcare operations efficiently</p>
             </div>
             <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Bell className="w-6 h-6 text-gray-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 p-8 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 p-8 overflow-auto">{children}</main>
       </div>
     </div>
   );

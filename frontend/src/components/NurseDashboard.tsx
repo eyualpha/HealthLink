@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User } from '../App';
+import type { User } from '../types';
 import { DashboardLayout } from './DashboardLayout';
 import { PatientRecords } from './PatientRecords';
 import { Appointments } from './Appointments';

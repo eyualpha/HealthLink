@@ -1,36 +1,35 @@
 import { useState } from 'react';
-import { User, UserRole } from '../App';
 import { Activity } from 'lucide-react';
+import type { User, UserRole } from '../types';
 
 interface LoginProps {
   onLogin: (user: User) => void;
 }
 
-// Mock users for demonstration
-const mockUsers = {
+const mockUsers: Record<UserRole, User> = {
   doctor: {
     id: 'doc1',
     name: 'Dr. Abebe Kebede',
     email: 'abebe.kebede@healthlink.et',
-    role: 'doctor' as UserRole,
+    role: 'doctor',
   },
   nurse: {
     id: 'nurse1',
     name: 'Nurse Tigist Alemu',
     email: 'tigist.alemu@healthlink.et',
-    role: 'nurse' as UserRole,
+    role: 'nurse',
   },
   patient: {
     id: 'pat1',
     name: 'Mekdes Hailu',
     email: 'mekdes.hailu@example.com',
-    role: 'patient' as UserRole,
+    role: 'patient',
   },
   admin: {
     id: 'admin1',
     name: 'Admin Solomon Tesfaye',
     email: 'solomon.tesfaye@healthlink.et',
-    role: 'admin' as UserRole,
+    role: 'admin',
   },
 };
 
@@ -41,7 +40,6 @@ export function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in production this would authenticate with backend
     onLogin(mockUsers[selectedRole]);
   };
 
@@ -54,7 +52,7 @@ export function Login({ onLogin }: LoginProps) {
               <Activity className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-blue-900 mb-2">HealthLink</h1>
+          <h1 className="text-blue-900 text-2xl font-semibold mb-2">HealthLink</h1>
           <p className="text-gray-600">Ethiopia's National EHR System</p>
         </div>
 
