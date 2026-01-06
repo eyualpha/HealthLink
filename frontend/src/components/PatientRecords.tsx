@@ -60,9 +60,7 @@ const mockPatients: PatientRecord[] = [
       { date: '2024-01-15', condition: 'Type 2 Diabetes', doctor: 'Dr. Abebe Kebede' },
       { date: '2023-06-20', condition: 'Hypertension', doctor: 'Dr. Abebe Kebede' },
     ],
-    treatments: [
-      { date: '2024-01-15', treatment: 'Medication Adjustment', notes: 'Increased Metformin dosage' },
-    ],
+    treatments: [{ date: '2024-01-15', treatment: 'Medication Adjustment', notes: 'Increased Metformin dosage' }],
     immunizations: [
       { vaccine: 'COVID-19 Booster', date: '2023-09-10' },
       { vaccine: 'Influenza', date: '2023-10-15' },
@@ -86,19 +84,13 @@ const mockPatients: PatientRecord[] = [
     allergies: [],
     medicalHistory: ['Asthma (2015)'],
     currentMedications: ['Albuterol Inhaler'],
-    diagnoses: [
-      { date: '2023-11-05', condition: 'Asthma', doctor: 'Dr. Abebe Kebede' },
-    ],
-    treatments: [
-      { date: '2023-11-05', treatment: 'Prescribed Inhaler', notes: 'Use as needed' },
-    ],
+    diagnoses: [{ date: '2023-11-05', condition: 'Asthma', doctor: 'Dr. Abebe Kebede' }],
+    treatments: [{ date: '2023-11-05', treatment: 'Prescribed Inhaler', notes: 'Use as needed' }],
     immunizations: [
       { vaccine: 'COVID-19', date: '2023-05-20' },
       { vaccine: 'Tetanus', date: '2022-08-15' },
     ],
-    labResults: [
-      { test: 'Pulmonary Function', date: '2023-11-01', result: 'Normal', status: 'Normal' },
-    ],
+    labResults: [{ test: 'Pulmonary Function', date: '2023-11-01', result: 'Normal', status: 'Normal' }],
     lastVisit: '2023-11-05',
   },
   {
@@ -114,15 +106,9 @@ const mockPatients: PatientRecord[] = [
     allergies: ['Sulfa drugs'],
     medicalHistory: ['Heart Disease (2018)', 'High Cholesterol (2017)'],
     currentMedications: ['Atorvastatin 20mg', 'Aspirin 81mg'],
-    diagnoses: [
-      { date: '2023-08-12', condition: 'Coronary Artery Disease', doctor: 'Dr. Abebe Kebede' },
-    ],
-    treatments: [
-      { date: '2023-08-12', treatment: 'Cardiac Rehabilitation', notes: 'Ongoing monitoring' },
-    ],
-    immunizations: [
-      { vaccine: 'Pneumococcal', date: '2023-03-10' },
-    ],
+    diagnoses: [{ date: '2023-08-12', condition: 'Coronary Artery Disease', doctor: 'Dr. Abebe Kebede' }],
+    treatments: [{ date: '2023-08-12', treatment: 'Cardiac Rehabilitation', notes: 'Ongoing monitoring' }],
+    immunizations: [{ vaccine: 'Pneumococcal', date: '2023-03-10' }],
     labResults: [
       { test: 'Lipid Panel', date: '2023-12-20', result: 'LDL: 95 mg/dL', status: 'Normal' },
       { test: 'ECG', date: '2023-12-20', result: 'Normal sinus rhythm', status: 'Normal' },
@@ -131,18 +117,49 @@ const mockPatients: PatientRecord[] = [
   },
 ];
 
+const emptyPatient = (): PatientRecord => ({
+  id: '',
+  name: '',
+  age: 0,
+  gender: '',
+  bloodType: '',
+  phone: '',
+  email: '',
+  address: '',
+  emergencyContact: '',
+  allergies: [],
+  medicalHistory: [],
+  currentMedications: [],
+  diagnoses: [],
+  treatments: [],
+  immunizations: [],
+  labResults: [],
+  lastVisit: '',
+});
+
 export function PatientRecords({ userRole }: PatientRecordsProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  const filteredPatients = mockPatients.filter((patient) =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.id.toLowerCase().includes(searchTerm.toLowerCase())
+  // NEW:
+  const [isCreateMode, setIsCreateMode] = useState(false);
+  const [editablePatient, setEditablePatient] = useState<PatientRecord | null>(null);
+
+  const filteredPatients = mockPatients.filter(
+    (patient) =>
+      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patient.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleAddNew = () => {
+    setIsCreateMode(true);
+    setEditablePatient(emptyPatient());
+    setShowModal(true);
+  };
+
   const handleViewRecord = (patient: PatientRecord) => {
-    setSelectedPatient(patient);
+    setIsCreateMode(false);
+    setEditablePatient(patient);
     setShowModal(true);
   };
 
@@ -150,8 +167,12 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">Patient Records</h2>
+
         {(userRole === 'doctor' || userRole === 'nurse') && (
-          <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
             <Plus className="w-5 h-5" />
             Add New Patient
           </button>
@@ -160,7 +181,7 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="mb-6 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
             placeholder="Search by patient name or ID..."
@@ -183,6 +204,7 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
                 <th className="text-left py-3 px-4 text-gray-700">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {filteredPatients.map((patient) => (
                 <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -191,6 +213,7 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
                   <td className="py-4 px-4 text-gray-600">{patient.age}</td>
                   <td className="py-4 px-4 text-gray-600">{patient.bloodType}</td>
                   <td className="py-4 px-4 text-gray-600">{patient.lastVisit}</td>
+
                   <td className="py-4 px-4">
                     {patient.allergies.length > 0 ? (
                       <div className="flex items-center gap-2 text-red-600">
@@ -201,6 +224,7 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
                       <span className="text-gray-500 text-sm">None</span>
                     )}
                   </td>
+
                   <td className="py-4 px-4">
                     <button
                       onClick={() => handleViewRecord(patient)}
@@ -212,16 +236,25 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
                   </td>
                 </tr>
               ))}
+
+              {filteredPatients.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                    No patients found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {showModal && selectedPatient && (
+      {showModal && editablePatient && (
         <PatientRecordModal
-          patient={selectedPatient}
+          patient={editablePatient}
           onClose={() => setShowModal(false)}
           userRole={userRole}
+          isCreateMode={isCreateMode}
         />
       )}
     </div>
