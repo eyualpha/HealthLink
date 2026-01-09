@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { User } from '../types';
 import { DashboardLayout } from './DashboardLayout';
 import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'lucide-react';
+import BookAppointmentModal from './BookAppointmentModal';
+import type { AppointmentForm } from './BookAppointmentModal';
 
 interface PatientDashboardProps {
   user: User;
@@ -242,11 +244,19 @@ function MyHealthRecords() {
 }
 
 function MyAppointments() {
+  const [showBookModal, setShowBookModal] = useState(false);
+
+  const handleBookingSubmit = (data: AppointmentForm) => {
+    // TODO: send booking to backend
+    console.log('Booked appointment:', data);
+    setShowBookModal(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">My Appointments</h2>
-        <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button onClick={() => setShowBookModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
           <Calendar className="w-5 h-5" />
           Book Appointment
         </button>
@@ -307,6 +317,9 @@ function MyAppointments() {
           </div>
         </div>
       </div>
+      {showBookModal && (
+        <BookAppointmentModal open={showBookModal} onClose={() => setShowBookModal(false)} onSubmit={handleBookingSubmit} />
+      )}
     </div>
   );
 }
