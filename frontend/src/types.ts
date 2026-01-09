@@ -5,4 +5,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  // optional profile fields
+  address?: string;
+  phone?: string;
+  notes?: string;
 }

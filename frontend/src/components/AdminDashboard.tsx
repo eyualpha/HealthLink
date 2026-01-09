@@ -26,7 +26,7 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       onLogout={onLogout}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={setActiveView}
+      onViewChange={(v) => setActiveView(v as AdminView)}
     >
       {activeView === 'analytics' && <AnalyticsDashboard />}
       {activeView === 'users' && <UserManagement />}

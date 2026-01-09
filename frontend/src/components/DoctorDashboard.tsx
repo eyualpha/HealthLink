@@ -29,7 +29,7 @@ export function DoctorDashboard({ user, onLogout }: DoctorDashboardProps) {
       onLogout={onLogout}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={setActiveView}
+      onViewChange={(v) => setActiveView(v as DoctorView)}
     >
       {activeView === 'overview' && <DoctorOverview />}
       {activeView === 'patients' && <PatientRecords userRole="doctor" />}

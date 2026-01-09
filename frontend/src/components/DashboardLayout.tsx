@@ -2,29 +2,31 @@ import { Activity, LogOut, Bell } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { User } from '../types';
 
-interface MenuItem {
-  id: string;
+interface MenuItem<T extends string> {
+  id: T;
   label: string;
   icon: LucideIcon;
 }
 
-interface DashboardLayoutProps {
+interface DashboardLayoutProps<T extends string> {
   user: User;
   onLogout: () => void;
-  menuItems: MenuItem[];
-  activeView: string;
-  onViewChange: (view: any) => void;
+  menuItems: MenuItem<T>[];
+  activeView: T;
+  onViewChange: (view: T) => void;
+  onEditProfile?: () => void;
   children: React.ReactNode;
 }
 
-export function DashboardLayout({
+export function DashboardLayout<T extends string>({
   user,
   onLogout,
   menuItems,
   activeView,
   onViewChange,
+  onEditProfile,
   children,
-}: DashboardLayoutProps) {
+}: DashboardLayoutProps<T>) {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -65,7 +67,9 @@ export function DashboardLayout({
 
         <div className="p-4 border-t border-blue-800">
           <div className="mb-4 p-3 bg-blue-800 rounded-lg">
-            <div className="text-white text-sm">{user.name}</div>
+            <button onClick={() => onEditProfile?.()} className="text-white text-sm text-left w-full">
+              {user.name}
+            </button>
             <div className="text-blue-300 text-sm capitalize">{user.role}</div>
           </div>
           <button
@@ -83,7 +87,7 @@ export function DashboardLayout({
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-gray-900 text-xl font-semibold">Welcome, {user.name}</h1>
+              <h1 className="text-gray-900 text-xl font-semibold">Welcome, <button onClick={() => onEditProfile?.()} className="text-blue-600 hover:underline">{user.name}</button></h1>
               <p className="text-gray-500">Manage your healthcare operations efficiently</p>
             </div>
             <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">

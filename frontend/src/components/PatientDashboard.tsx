@@ -3,6 +3,7 @@ import type { User } from '../types';
 import { DashboardLayout } from './DashboardLayout';
 import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'lucide-react';
 import BookAppointmentModal from './BookAppointmentModal';
+import EditableProfileModal from './EditableProfileModal';
 import type { AppointmentForm } from './BookAppointmentModal';
 
 interface PatientDashboardProps {
@@ -14,6 +15,8 @@ type PatientView = 'overview' | 'records' | 'appointments' | 'prescriptions';
 
 export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
   const [activeView, setActiveView] = useState<PatientView>('overview');
+  const [localUser, setLocalUser] = useState<User>(user);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const menuItems = [
     { id: 'overview' as PatientView, label: 'Overview', icon: Activity },
@@ -28,20 +31,38 @@ export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
       onLogout={onLogout}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={setActiveView}
+      onViewChange={(v) => setActiveView(v as PatientView)}
+      onEditProfile={() => setShowProfileModal(true)}
     >
-      {activeView === 'overview' && <PatientOverview />}
+      {activeView === 'overview' && <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />}
       {activeView === 'records' && <MyHealthRecords />}
       {activeView === 'appointments' && <MyAppointments />}
       {activeView === 'prescriptions' && <MyPrescriptions />}
+
+      {showProfileModal && (
+        <EditableProfileModal
+          open={showProfileModal}
+          user={localUser}
+          onClose={() => setShowProfileModal(false)}
+          onSave={(u) => {
+            setLocalUser(u);
+            setShowProfileModal(false);
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
 
-function PatientOverview() {
+function PatientOverview({ user, onEditProfile }: { user: User; onEditProfile: () => void }) {
   return (
     <div className="space-y-6">
-      <h2 className="text-gray-900">My Health Dashboard</h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-gray-900">My Health Dashboard</h2>
+          <div className="text-sm text-gray-600">Welcome, <button onClick={onEditProfile} className="font-medium text-blue-600 hover:underline">{user.name}</button></div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">

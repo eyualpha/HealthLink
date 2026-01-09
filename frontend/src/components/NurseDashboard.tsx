@@ -28,7 +28,7 @@ export function NurseDashboard({ user, onLogout }: NurseDashboardProps) {
       onLogout={onLogout}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={setActiveView}
+      onViewChange={(v) => setActiveView(v as NurseView)}
     >
       {activeView === 'overview' && <NurseOverview />}
       {activeView === 'patients' && <PatientRecords userRole="nurse" />}

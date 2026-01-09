@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import SearchableSelect from './SearchableSelect';
 
 export interface AppointmentForm {
   doctor: string;
@@ -12,6 +13,7 @@ export interface AppointmentForm {
 interface BookAppointmentModalProps {
   open: boolean;
   initial?: Partial<AppointmentForm>;
+  doctorOptions?: string[];
   onClose: () => void;
   onSubmit: (data: AppointmentForm) => void;
 }
@@ -59,11 +61,17 @@ export default function BookAppointmentModal({ open, initial, onClose, onSubmit 
         <div className="p-6 space-y-4">
           <div>
             <label className="text-gray-500 text-sm mb-1 block">Doctor</label>
-            <input
+            <SearchableSelect
+              id="doctor-select"
+              options={initial && initial.doctor ? [initial.doctor] : [
+                'Dr. Abebe Kebede',
+                'Dr. Solomon Tesfaye',
+                'Dr. Maya Alemu',
+                'Dr. John Doe',
+              ]}
               value={form.doctor}
-              onChange={(e) => setForm((s) => ({ ...s, doctor: e.target.value }))}
+              onChange={(val: string) => setForm((s) => ({ ...s, doctor: val }))}
               placeholder="Select doctor or type name"
-              className="w-full px-3 py-2 border rounded-lg"
             />
           </div>
 
