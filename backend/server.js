@@ -21,8 +21,20 @@ const __dirname = path.dirname(__filename);
 connectDB();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-app.use(cors());
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/healthlink";
+
+app.use(helmet());
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
+app.use(express.json());
+
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+app.use(limiter);
 
 app.get("/", (req, res) => {
   res.send("HealthLink Backend is running");
