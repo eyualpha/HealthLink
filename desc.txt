@@ -1,0 +1,36 @@
+Core Requirements (What to Build):
+
+Centralized EHR System:
+A secure, digital database for all patient records, accessible by authorized users (doctors, nurses, admins) across hospitals and clinics.
+Role-Based Access & Authentication:
+Users log in securely; permissions are based on their role (e.g., doctor, nurse, admin, patient).
+Patient Record Management:
+Create, view, update, and search patient records (demographics, history, diagnoses, allergies, treatments, lab results).
+Appointment Scheduling:
+Patients and staff can book, reschedule, and cancel appointments; system prevents double-booking.
+Prescription Management:
+Doctors prescribe medications digitally; system checks for conflicts/allergies using AI.
+AI Decision Support:
+Alerts for prescription conflicts, allergies, and possibly other safety issues.
+Automated Notifications:
+Reminders for appointments, alerts for new lab results, etc.
+Reporting & Analytics:
+Dashboards for admins to view system usage, wait times, and other metrics.
+Audit Logging:
+Track all access and changes to records for security/compliance.
+APIs for Interoperability:
+Allow integration with other health systems (labs, pharmacies).
+Non-Functional Requirements (How it Should Work):
+
+Fast (load records in <2s), secure (encryption, RBAC), reliable (high uptime), scalable, easy to use, and standards-based (e.g., FHIR for data).
+What’s NOT Required (for MVP):
+
+Telemedicine, advanced disease prediction, or international data exchange—these are future goals.
+What to Build First (MVP):
+
+User authentication and role management
+Patient record CRUD (create/read/update/search)
+Appointment scheduling
+Digital prescription with basic AI conflict check
+Simple dashboard for admin
+Audit log
