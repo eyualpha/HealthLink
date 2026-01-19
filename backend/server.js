@@ -2,12 +2,14 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
+import { authenticateJWT, signTestToken } from "./auth.js";
+import { Roles, permitRoles } from "./rbac.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/healthlink";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/healthlink";
 
 app.use(cors());
 app.use(express.json());
@@ -19,6 +21,22 @@ app.get("/", (req, res) => {
 app.get("/db-status", (req, res) => {
   const state = mongoose.connection.readyState; // 0 disconnected, 1 connected, 2 connecting, 3 disconnecting
   res.json({ state });
+});
+
+// Issue a test JWT for local testing (do not use in production)
+app.get("/auth/test-token", (req, res) => {
+  const role = req.query.role || Roles.PATIENT;
+  const token = signTestToken({ id: "demo", role });
+  res.json({ token, role });
+});
+
+// Example RBAC-protected routes
+app.get("/secure/admin", authenticateJWT, permitRoles(Roles.ADMIN), (req, res) => {
+  res.json({ ok: true, role: req.user.role });
+});
+
+app.get("/secure/clinician", authenticateJWT, permitRoles(Roles.CLINICIAN, Roles.ADMIN), (req, res) => {
+  res.json({ ok: true, role: req.user.role });
 });
 
 mongoose
