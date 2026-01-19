@@ -1,5 +1,4 @@
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
 import helmet from "helmet";
@@ -10,25 +9,20 @@ import patientRoutes from "./routes/patients.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
 
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+import { PORT } from "./configs/env.config.js";
+import connectDB from "./configs/mongodb.config.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/healthlink";
-
-app.use(helmet());
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
-app.use(
-  cors({
-    origin: corsOrigin,
-    credentials: true,
-  })
-);
-app.use(express.json());
-
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
-app.use(limiter);
+app.use(cors());
 
 app.get("/", (req, res) => {
   res.send("HealthLink Backend is running");
