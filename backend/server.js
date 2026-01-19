@@ -2,17 +2,33 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import mongoose from "mongoose";
-import { authenticateJWT, signTestToken } from "./auth.js";
-import { Roles, permitRoles } from "./rbac.js";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import patientRoutes from "./routes/patients.js";
+import { authenticateJWT } from "./middleware/auth.js";
+import { Roles } from "./rbac.js";
+
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/healthlink";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/healthlink";
 
-app.use(cors());
+app.use(helmet());
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
+app.use(limiter);
 
 app.get("/", (req, res) => {
   res.send("HealthLink Backend is running");
@@ -23,19 +39,18 @@ app.get("/db-status", (req, res) => {
   res.json({ state });
 });
 
-// Issue a test JWT for local testing (do not use in production)
-app.get("/auth/test-token", (req, res) => {
-  const role = req.query.role || Roles.PATIENT;
-  const token = signTestToken({ id: "demo", role });
-  res.json({ token, role });
-});
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
+app.use("/patients", patientRoutes);
 
-// Example RBAC-protected routes
-app.get("/secure/admin", authenticateJWT, permitRoles(Roles.ADMIN), (req, res) => {
+app.get("/secure/admin", authenticateJWT, (req, res) => {
+  if (req.user.role !== Roles.ADMIN) return res.status(403).json({ error: "Forbidden" });
   res.json({ ok: true, role: req.user.role });
 });
 
-app.get("/secure/clinician", authenticateJWT, permitRoles(Roles.CLINICIAN, Roles.ADMIN), (req, res) => {
+app.get("/secure/clinician", authenticateJWT, (req, res) => {
+  if (req.user.role !== Roles.CLINICIAN && req.user.role !== Roles.ADMIN && req.user.role !== Roles.DOCTOR)
+    return res.status(403).json({ error: "Forbidden" });
   res.json({ ok: true, role: req.user.role });
 });
 
