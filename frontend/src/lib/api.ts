@@ -74,6 +74,28 @@ export async function getPatients(q = '') {
   return res.json();
 }
 
+export async function createPatient(payload: any) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/patients`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function updatePatient(id: string, payload: any) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/patients/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export default {
   login,
   logout,
@@ -81,4 +103,6 @@ export default {
   getMyAppointments,
   createAppointment,
   getPatients,
+  createPatient,
+  updatePatient,
 };

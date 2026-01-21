@@ -8,11 +8,12 @@ interface PatientRecordModalProps {
   onClose: () => void;
   userRole: 'doctor' | 'nurse' | 'admin';
   isCreateMode?: boolean;
+  onSave?: (p: PatientRecord, isCreate?: boolean) => Promise<void>;
 }
 
 type ListKey = 'allergies' | 'medicalHistory' | 'currentMedications';
 
-export function PatientRecordModal({ patient, onClose, userRole, isCreateMode }: PatientRecordModalProps) {
+export function PatientRecordModal({ patient, onClose, userRole, isCreateMode, onSave }: PatientRecordModalProps) {
   const canEdit = userRole === 'doctor' || userRole === 'nurse';
 
   const [form, setForm] = useState<PatientRecord>(patient);
@@ -48,11 +49,21 @@ export function PatientRecordModal({ patient, onClose, userRole, isCreateMode }:
   const handleSave = () => {
     if (!validate()) return;
 
-    // Later: call your backend (POST/PUT)
-    console.log('Saved patient:', form);
-
-    setIsEditing(false);
-    onClose();
+    const doSave = async () => {
+      try {
+        if (onSave) {
+          await onSave(form, !!isCreateMode);
+        } else {
+          console.log('Saved patient (no onSave):', form);
+        }
+        setIsEditing(false);
+        onClose();
+      } catch (err) {
+        console.error('Save failed', err);
+        // TODO: surface error to user
+      }
+    };
+    void doSave();
   };
 
   const addListItem = (key: ListKey, value: string) => {

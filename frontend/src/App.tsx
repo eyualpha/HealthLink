@@ -25,10 +25,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {currentUser.role === 'doctor' && (
+      {(currentUser.role === 'doctor' || currentUser.role === 'clinician') && (
         <DoctorDashboard user={currentUser} onLogout={handleLogout} />
       )}
-      {currentUser.role === 'nurse' && (
+      {(currentUser.role === 'nurse' || currentUser.role === 'reception') && (
         <NurseDashboard user={currentUser} onLogout={handleLogout} />
       )}
       {currentUser.role === 'patient' && (
