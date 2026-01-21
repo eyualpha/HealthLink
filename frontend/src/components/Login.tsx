@@ -92,7 +92,7 @@ export function Login({ onLogin }: LoginProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
+          {/* <div>
             <label className="block text-gray-700 mb-2">Select Role (Demo)</label>
             <select
               value={selectedRole}
@@ -104,7 +104,7 @@ export function Login({ onLogin }: LoginProps) {
               <option value="patient">Patient</option>
               <option value="admin">Administrator</option>
             </select>
-          </div>
+          </div> */}
 
           <div>
             <label className="block text-gray-700 mb-2">Email</label>
