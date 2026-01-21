@@ -1,14 +1,13 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-
-const Roles = ["admin", "doctor", "nurse", "reception", "patient", "clinician"];
+import { Roles } from "../rbac.js";
 
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, index: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: Roles, default: "patient", index: true },
+    role: { type: String, enum: Object.values(Roles), default: Roles.PATIENT, index: true },
     hospitalId: { type: mongoose.Schema.Types.ObjectId, ref: "Hospital", required: false },
     disabled: { type: Boolean, default: false },
   },
