@@ -1,4 +1,11 @@
-const BASE = (import.meta.env.VITE_BASE_URL || import.meta.env.BASE_URL || '') || 'http://localhost:5000';
+// Prefer explicit Vite env `VITE_API_URL`. Fall back to other envs, but avoid
+// using `BASE_URL` alone because Vite exposes it as '/' and that produces
+// protocol-relative URLs when concatenated (e.g. `//auth/login`).
+let _base = import.meta.env.VITE_API_URL || import.meta.env.VITE_BASE_URL || import.meta.env.BASE_URL || '';
+// Treat bare '/' or empty as unspecified and fallback to localhost
+if (!_base || _base === '/') _base = 'http://localhost:5000';
+// remove trailing slash
+const BASE = _base.replace(/\/$/, '');
 
 function getStorage() {
   try {
