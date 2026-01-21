@@ -10,7 +10,7 @@ import prescriptionRoutes from "./routes/prescriptions.js";
 import appointmentRoutes from "./routes/appointments.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
-import 'dotenv/config';
+import { CORS_ORIGIN } from "./configs/env.config.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -26,13 +26,19 @@ const app = express();
 // Request logging
 app.use((req, res, next) => {
   const start = Date.now();
-  console.log(`${new Date().toISOString()} --> ${req.method} ${req.originalUrl}`);
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    try { console.log('Body:', JSON.stringify(req.body)); } catch (e) {}
+  console.log(
+    `${new Date().toISOString()} --> ${req.method} ${req.originalUrl}`,
+  );
+  if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
+    try {
+      console.log("Body:", JSON.stringify(req.body));
+    } catch (e) {}
   }
-  res.on('finish', () => {
+  res.on("finish", () => {
     const ms = Date.now() - start;
-    console.log(`${new Date().toISOString()} <-- ${res.statusCode} ${req.method} ${req.originalUrl} ${ms}ms`);
+    console.log(
+      `${new Date().toISOString()} <-- ${res.statusCode} ${req.method} ${req.originalUrl} ${ms}ms`,
+    );
   });
   next();
 });
@@ -43,13 +49,14 @@ connectDB()
     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   })
   .catch((err) => {
-    console.error('Failed to connect to DB:', err.message || err);
+    console.error("Failed to connect to DB:", err.message || err);
     // start server anyway so some endpoints can be tested
-    app.listen(PORT, () => console.log(`Server started on port ${PORT} (no DB connection)`));
+    app.listen(PORT, () =>
+      console.log(`Server started on port ${PORT} (no DB connection)`),
+    );
   });
 
 app.use(helmet());
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
 // Explicit CORS options to reliably handle preflight requests
 const corsOptions = {
   // allow any origin (will echo origin header) — keeps credentials support
