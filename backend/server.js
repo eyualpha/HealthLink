@@ -10,6 +10,7 @@ import prescriptionRoutes from "./routes/prescriptions.js";
 import appointmentRoutes from "./routes/appointments.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
+import 'dotenv/config';
 
 import path from "path";
 import { fileURLToPath } from "url";
