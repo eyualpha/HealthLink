@@ -12,7 +12,6 @@ import { Roles } from "./rbac.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { PORT } from "./configs/env.config.js";
 import connectDB from "./configs/mongodb.config.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,7 +20,6 @@ const __dirname = path.dirname(__filename);
 connectDB();
 
 const app = express();
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/healthlink";
 
 app.use(helmet());
 const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
@@ -29,7 +27,7 @@ app.use(
   cors({
     origin: corsOrigin,
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
@@ -50,28 +48,17 @@ app.use("/users", userRoutes);
 app.use("/patients", patientRoutes);
 
 app.get("/secure/admin", authenticateJWT, (req, res) => {
-  if (req.user.role !== Roles.ADMIN) return res.status(403).json({ error: "Forbidden" });
-  res.json({ ok: true, role: req.user.role });
-});
-
-app.get("/secure/clinician", authenticateJWT, (req, res) => {
-  if (req.user.role !== Roles.CLINICIAN && req.user.role !== Roles.ADMIN && req.user.role !== Roles.DOCTOR)
+  if (req.user.role !== Roles.ADMIN)
     return res.status(403).json({ error: "Forbidden" });
   res.json({ ok: true, role: req.user.role });
 });
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log(`Connected to MongoDB at ${MONGO_URI}`);
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Failed to connect to MongoDB:", err.message);
-    // Still start the server so non-db endpoints can be tested
-    app.listen(PORT, () => {
-      console.log(`Server started on port ${PORT} (no DB connection)`);
-    });
-  });
+app.get("/secure/clinician", authenticateJWT, (req, res) => {
+  if (
+    req.user.role !== Roles.CLINICIAN &&
+    req.user.role !== Roles.ADMIN &&
+    req.user.role !== Roles.DOCTOR
+  )
+    return res.status(403).json({ error: "Forbidden" });
+  res.json({ ok: true, role: req.user.role });
+});
