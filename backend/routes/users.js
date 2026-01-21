@@ -11,7 +11,7 @@ router.post(
   "/",
   authenticateJWT,
   permitRoles(Roles.ADMIN),
-  body("email").isEmail(),
+  body("email").isEmail({ require_tld: false }),
   body("password").isLength({ min: 6 }),
   body("name").isLength({ min: 1 }),
   body("role").isIn([

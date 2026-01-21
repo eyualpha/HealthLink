@@ -49,15 +49,8 @@ export function Login({ onLogin }: LoginProps) {
       const data = await api.login(email, password);
       onLogin(data.user);
     } catch (err) {
-      setError('Login failed — falling back to demo user.');
-      const demoUser: User =
-        mockUsers[selectedRole] ?? {
-          id: `demo-${selectedRole}`,
-          name: `${selectedRole} (demo)`,
-          email: email || `${selectedRole}@example.com`,
-          role: selectedRole,
-        };
-      onLogin(demoUser);
+      setError('Login failed — please check credentials.');
+      // Do not auto-login with a demo user. Keep the form for retry.
     } finally {
       setLoading(false);
     }

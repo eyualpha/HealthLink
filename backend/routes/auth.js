@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post(
   "/register",
-  body("email").isEmail(),
+  body("email").isEmail({ require_tld: false }),
   body("password").isLength({ min: 6 }),
   body("name").isLength({ min: 1 }),
   async (req, res) => {
@@ -26,7 +26,7 @@ router.post(
 
 router.post(
   "/login",
-  body("email").isEmail(),
+  body("email").isEmail({ require_tld: false }),
   body("password").isLength({ min: 1 }),
   async (req, res) => {
     const errs = validationResult(req);
