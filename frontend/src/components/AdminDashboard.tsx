@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { User } from '../types';
 import { DashboardLayout } from './DashboardLayout';
-import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock } from 'lucide-react';
+import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock, X } from 'lucide-react';
 
 interface AdminDashboardProps {
   user: User;
@@ -192,7 +192,24 @@ function AnalyticsDashboard() {
   );
 }
 
+interface NewUserFormData {
+  name: string;
+  email: string;
+  role: string;
+  // department?: string;
+  phone?: string;
+}
+
 function UserManagement() {
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [newUser, setNewUser] = useState<NewUserFormData>({
+    name: '',
+    email: '',
+    role: 'Doctor',
+    // department: '',
+    phone: ''
+  });
+
   const users = [
     { id: 1, name: 'Dr. Abebe Kebede', role: 'Doctor', email: 'abebe.k@healthlink.et', status: 'Active' },
     { id: 2, name: 'Nurse Tigist Alemu', role: 'Nurse', email: 'tigist.a@healthlink.et', status: 'Active' },
@@ -200,16 +217,149 @@ function UserManagement() {
     { id: 4, name: 'Admin User', role: 'Administrator', email: 'admin@healthlink.et', status: 'Active' },
   ];
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Here you would typically send the data to your backend API
+    console.log('New user data:', newUser);
+    
+    // Reset form and close modal
+    setNewUser({
+      name: '',
+      email: '',
+      role: 'Doctor',
+      // department: '',
+      phone: ''
+    });
+    setShowAddUserForm(false);
+    
+    // Show success message or update user list
+    alert('User added successfully!');
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">User Management</h2>
-        <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button 
+          onClick={() => setShowAddUserForm(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Users className="w-5 h-5" />
           Add New User
         </button>
       </div>
 
+      {/* Add User Form Modal */}
+ {showAddUserForm && (
+  <div 
+    onClick={() => setShowAddUserForm(false)}
+    className="fixed inset-0 bg-gray-900/10 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
+  >
+    <div 
+      onClick={(e) => e.stopPropagation()}
+      className="bg-white rounded-xl shadow-lg w-full max-w-md"
+    >
+      <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900">Add New User</h3>
+        <button
+          onClick={() => setShowAddUserForm(false)}
+          className="text-gray-400 hover:text-gray-500"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Full Name *
+          </label>
+          <input
+            type="text"
+            name="name"
+            value={newUser.name}
+            onChange={handleInputChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            placeholder="Enter full name"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Email Address *
+          </label>
+          <input
+            type="email"
+            name="email"
+            value={newUser.email}
+            onChange={handleInputChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            placeholder="user@healthlink.et"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Role *
+          </label>
+          <select
+            name="role"
+            value={newUser.role}
+            onChange={handleInputChange}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+          >
+            <option value="Doctor">Doctor</option>
+            <option value="Nurse">Nurse</option>
+            <option value="Administrator">Administrator</option>
+            <option value="Lab Technician">Lab Technician</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            name="phone"
+            value={newUser.phone}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            placeholder="+251 9XX XXX XXX"
+          />
+        </div>
+        
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowAddUserForm(false)}
+            className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+          >
+            Add User
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+      {/* User Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
