@@ -15,13 +15,10 @@ import {
   Filter,
   Mail,
   Phone,
-  FileText,
   Stethoscope,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
-import api from "../lib/api";
-
 import { createUser, getUsers, getAuditLogs } from "../lib/api";
 
 interface AdminDashboardProps {
@@ -43,11 +40,8 @@ export function AdminDashboard({
   user,
   onLogout,
   onShowNotifications,
-  accessToken,
 }: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>("analytics");
-  const session = api.getSession();
-  const authToken = accessToken || session?.accessToken;
 
   // --- audit log state (for the Audit tab) ---
   const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
@@ -333,18 +327,6 @@ function AnalyticsDashboard() {
   );
 }
 
-interface UserRecord {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  status: "Active" | "Inactive";
-  department: string;
-  phone?: string;
-  lastActive: string;
-  createdAt: string;
-}
-
 interface NewUserFormData {
   name: string;
   email: string;
@@ -358,17 +340,21 @@ interface UserTableRow {
   name: string;
   role: string;
   email: string;
-  status: string;
+  status: "Active" | "Inactive";
+  department: string;
+  phone?: string;
+  lastActive: string;
+  createdAt: string;
 }
 
 type RoleFilter =
   | "all"
-  | "Administrator"
-  | "Doctor"
-  | "Nurse"
-  | "Reception"
-  | "Clinician"
-  | "Patient";
+  | "admin"
+  | "doctor"
+  | "nurse"
+  | "reception"
+  | "clinician"
+  | "patient";
 
 type StatusFilter = "all" | "Active" | "Inactive";
 
@@ -386,6 +372,17 @@ function UserManagement() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const [filters, setFilters] = useState<{
+    search: string;
+    role: RoleFilter;
+    status: StatusFilter;
+  }>({
+    search: "",
+    role: "all",
+    status: "all",
+  });
 
   const roleOptions: { label: string; value: string }[] = [
     { label: "Administrator", value: "admin" },
@@ -396,13 +393,80 @@ function UserManagement() {
     { label: "Patient", value: "patient" },
   ];
 
+  const renderStatusPill = (status: "Active" | "Inactive") => {
+    const base = "px-3 py-1 rounded-full text-xs font-medium";
+    return (
+      <span
+        className={`${base} ${status === "Active" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  const formatDate = (iso: string) => {
+    let date: Date;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const [yearStr, monthStr, dayStr] = iso.split("-");
+      date = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr));
+    } else {
+      date = new Date(iso);
+    }
+
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const handleDownloadPdf = () => {
+    if (!reportRef.current) return;
+
+    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
+    if (!popup) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+
+    popup.document.title = "User Records Report";
+
+    const styleElement = popup.document.createElement("style");
+    styleElement.textContent = `
+      body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+      h1 { margin: 0 0 12px 0; }
+      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+      .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+      .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+      th { background: #f1f5f9; }
+      .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+      .pill-active { background: #dcfce7; color: #166534; }
+      .pill-inactive { background: #fef3c7; color: #92400e; }
+    `;
+    popup.document.head.appendChild(styleElement);
+
+    const container = popup.document.createElement("div");
+    const clonedReport = popup.document.importNode
+      ? popup.document.importNode(reportRef.current, true)
+      : (reportRef.current.cloneNode(true) as HTMLElement);
+    container.appendChild(clonedReport);
+    popup.document.body.appendChild(container);
+    popup.focus();
+    popup.print();
+  };
+
   const stats = useMemo(() => {
     const active = users.filter((u) => u.status === "Active").length;
     const inactive = users.length - active;
     const now = new Date();
     const createdThisMonth = users.filter((u) => {
       const d = new Date(u.createdAt);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
     }).length;
     return { total: users.length, active, inactive, createdThisMonth };
   }, [users]);
@@ -417,7 +481,9 @@ function UserManagement() {
           .includes(term),
       )
       .filter((u) => (filters.role === "all" ? true : u.role === filters.role))
-      .filter((u) => (filters.status === "all" ? true : u.status === filters.status))
+      .filter((u) =>
+        filters.status === "all" ? true : u.status === filters.status,
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [users, filters]);
 
@@ -444,15 +510,23 @@ function UserManagement() {
       role: newUser.role,
     })
       .then((created) => {
+        const createdAt = created.createdAt || new Date().toISOString();
+        const lastActive = created.lastActive || created.updatedAt || createdAt;
         setFormSuccess("User created successfully.");
         setUsers((prev) => [
           ...prev,
           {
             id: created.id || created._id || created.email,
-            name: created.name,
+            name:
+              created.name ||
+              `${created.firstName || ""} ${created.lastName || ""}`.trim(),
             email: created.email,
-            role: created.role,
+            role: created.role || newUser.role,
             status: "Active",
+            department: created.department || created.specialty || "General",
+            phone: created.phone || created.phoneNumber || "",
+            createdAt,
+            lastActive,
           },
         ]);
         setNewUser({
@@ -487,10 +561,19 @@ function UserManagement() {
         setUsers(
           list.map((u: any) => ({
             id: u.id || u._id || u.email,
-            name: u.name,
+            name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim(),
             email: u.email,
-            role: u.role,
-            status: "Active",
+            role: u.role || "doctor",
+            status: u.active === false ? "Inactive" : "Active",
+            department: u.department || u.specialty || "General",
+            phone: u.phone || u.phoneNumber || "",
+            createdAt: u.createdAt || u.created_at || new Date().toISOString(),
+            lastActive:
+              u.lastActive ||
+              u.last_active ||
+              u.updatedAt ||
+              u.createdAt ||
+              new Date().toISOString(),
           })),
         );
       })
@@ -535,22 +618,30 @@ function UserManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Total users</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.total}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Across all roles</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Active</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.active}
+          </div>
           <div className="text-xs text-green-600 mt-1">Eligible to log in</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Inactive</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.inactive}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.inactive}
+          </div>
           <div className="text-xs text-amber-600 mt-1">Require review</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Created this month</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.createdThisMonth}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.createdThisMonth}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Newly provisioned</div>
         </div>
       </div>
@@ -562,7 +653,9 @@ function UserManagement() {
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, search: e.target.value }))
+              }
               placeholder="Search by name, email, role, department"
               className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -573,12 +666,18 @@ function UserManagement() {
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={filters.role}
-              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value as RoleFilter }))}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  role: e.target.value as RoleFilter,
+                }))
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
+              <option value="all">All roles</option>
               {roleOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r === "all" ? "All roles" : r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>
@@ -588,7 +687,12 @@ function UserManagement() {
             <ShieldCheck className="w-4 h-4 text-gray-400" />
             <select
               value={filters.status}
-              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as StatusFilter }))}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  status: e.target.value as StatusFilter,
+                }))
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All statuses</option>
@@ -600,28 +704,61 @@ function UserManagement() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {formError && (
+          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
+            {formSuccess}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 text-gray-700">Name</th>
                 <th className="text-left py-3 px-4 text-gray-700">Role</th>
-                <th className="text-left py-3 px-4 text-gray-700">Department</th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  Department
+                </th>
                 <th className="text-left py-3 px-4 text-gray-700">Email</th>
                 <th className="text-left py-3 px-4 text-gray-700">Status</th>
-                <th className="text-left py-3 px-4 text-gray-700">Last active</th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  Last active
+                </th>
               </tr>
             </thead>
             <tbody>
+              {loadingUsers && (
+                <tr className="border-t border-gray-200">
+                  <td className="py-4 px-6 text-gray-600" colSpan={6}>
+                    Loading users...
+                  </td>
+                </tr>
+              )}
+              {!loadingUsers && filteredUsers.length === 0 && (
+                <tr className="border-t border-gray-200">
+                  <td className="py-4 px-6 text-gray-600" colSpan={6}>
+                    No users match your filters.
+                  </td>
+                </tr>
+              )}
               {filteredUsers.map((userRow) => (
                 <tr key={userRow.id} className="border-t border-gray-200">
-                  <td className="py-3 px-4 text-gray-900 font-medium">{userRow.name}</td>
+                  <td className="py-3 px-4 text-gray-900 font-medium">
+                    {userRow.name}
+                  </td>
                   <td className="py-3 px-4">
                     <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                      {userRow.role}
+                      {roleOptions.find((r) => r.value === userRow.role)
+                        ?.label || userRow.role}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-gray-600">{userRow.department}</td>
+                  <td className="py-3 px-4 text-gray-600">
+                    {userRow.department}
+                  </td>
                   <td className="py-3 px-4 text-gray-600">
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-gray-400" />
@@ -634,8 +771,12 @@ function UserManagement() {
                       </div>
                     )}
                   </td>
-                  <td className="py-3 px-4">{renderStatusPill(userRow.status)}</td>
-                  <td className="py-3 px-4 text-gray-600">{formatDate(userRow.lastActive)}</td>
+                  <td className="py-3 px-4">
+                    {renderStatusPill(userRow.status)}
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    {formatDate(userRow.lastActive)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -686,7 +827,9 @@ function UserManagement() {
                 <td>{u.department}</td>
                 <td>{u.email}</td>
                 <td>
-                  <span className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}>
+                  <span
+                    className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}
+                  >
                     {u.status}
                   </span>
                 </td>
@@ -944,7 +1087,9 @@ function PatientRecordsAdmin() {
           .toLowerCase()
           .includes(term),
       )
-      .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
+      .filter((p) =>
+        statusFilter === "all" ? true : p.status === statusFilter,
+      )
       .filter((p) => (riskFilter === "all" ? true : p.risk === riskFilter))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [patients, search, statusFilter, riskFilter]);
@@ -970,7 +1115,10 @@ function PatientRecordsAdmin() {
     });
   };
 
-  const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
+  const renderPill = (
+    label: string,
+    tone: "blue" | "amber" | "red" | "green",
+  ) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
     const map = {
       blue: "bg-blue-100 text-blue-700",
@@ -1029,7 +1177,8 @@ function PatientRecordsAdmin() {
         <div>
           <h2 className="text-gray-900">Patient Records</h2>
           <p className="text-gray-500 text-sm">
-            Track patient profiles, risk, follow-ups, and export an auditable PDF snapshot.
+            Track patient profiles, risk, follow-ups, and export an auditable
+            PDF snapshot.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1046,22 +1195,32 @@ function PatientRecordsAdmin() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Total patients</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.total}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Across all statuses</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Active</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
-          <div className="text-xs text-green-600 mt-1">Currently under care</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.active}
+          </div>
+          <div className="text-xs text-green-600 mt-1">
+            Currently under care
+          </div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Follow-ups due</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.followUp}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.followUp}
+          </div>
           <div className="text-xs text-blue-600 mt-1">Need scheduling</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">High-risk</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.highRisk}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.highRisk}
+          </div>
           <div className="text-xs text-red-600 mt-1">Monitor closely</div>
         </div>
       </div>
@@ -1085,7 +1244,9 @@ function PatientRecordsAdmin() {
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | PatientStatus)}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as "all" | PatientStatus)
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All statuses</option>
@@ -1099,7 +1260,9 @@ function PatientRecordsAdmin() {
             <ShieldCheck className="w-4 h-4 text-gray-400" />
             <select
               value={riskFilter}
-              onChange={(e) => setRiskFilter(e.target.value as "all" | PatientRisk)}
+              onChange={(e) =>
+                setRiskFilter(e.target.value as "all" | PatientRisk)
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All risk levels</option>
@@ -1112,16 +1275,6 @@ function PatientRecordsAdmin() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {formError && (
-          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
-            {formError}
-          </div>
-        )}
-        {formSuccess && (
-          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
-            {formSuccess}
-          </div>
-        )}
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -1135,36 +1288,46 @@ function PatientRecordsAdmin() {
             </tr>
           </thead>
           <tbody>
-            {loadingUsers && (
+            {filtered.length === 0 && (
               <tr className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-600" colSpan={5}>
-                  Loading users...
+                <td className="py-4 px-6 text-gray-600" colSpan={7}>
+                  No patients match your filters.
                 </td>
               </tr>
             )}
-            {!loadingUsers && users.length === 0 && (
-              <tr className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-600" colSpan={5}>
-                  No users created yet. Use "Add New User" to create one.
+            {filtered.map((p) => (
+              <tr key={p.id} className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-900">{p.id}</td>
+                <td className="py-4 px-6 text-gray-900 font-medium">
+                  {p.name}
                 </td>
-              </tr>
-            )}
-            {users.map((userRow) => (
-              <tr key={userRow.id} className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
                 <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {roleOptions.find((r) => r.value === userRow.role)?.label ||
-                      userRow.role}
-                  </span>
+                  {renderPill(
+                    p.status,
+                    p.status === "Active"
+                      ? "green"
+                      : p.status === "Follow-up"
+                        ? "amber"
+                        : "red",
+                  )}
                 </td>
-                <td className="pill pill-status">{p.status}</td>
-                <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>
-                  {p.risk}
+                <td className="py-4 px-6">
+                  {renderPill(
+                    p.risk,
+                    p.risk === "High"
+                      ? "red"
+                      : p.risk === "Medium"
+                        ? "amber"
+                        : "blue",
+                  )}
                 </td>
-                <td>{p.primaryCondition}</td>
-                <td>{formatDate(p.lastVisit)}</td>
-                <td>
+                <td className="py-4 px-6 text-gray-700">
+                  {p.primaryCondition}
+                </td>
+                <td className="py-4 px-6 text-gray-700">
+                  {formatDate(p.lastVisit)}
+                </td>
+                <td className="py-4 px-6 text-gray-600">
                   {p.email} | {p.phone}
                 </td>
               </tr>
