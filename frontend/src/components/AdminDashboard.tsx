@@ -1677,6 +1677,82 @@ function PatientRecordsAdmin() {
         </table>
       </div>
 
+      <div
+        ref={reportRef}
+        style={{ position: "absolute", left: "-9999px", top: 0 }}
+        aria-hidden
+      >
+        <h1>Patient Records Report</h1>
+        <div className="summary">
+          <div className="card">
+            <p className="muted">Total patients</p>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Active</p>
+            <strong>{stats.active}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Follow-ups</p>
+            <strong>{stats.followUp}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">High risk</p>
+            <strong>{stats.highRisk}</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Patient ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Risk</th>
+              <th>Condition</th>
+              <th>Last visit</th>
+              <th>Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p: PatientRow) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>{p.name}</td>
+                <td>
+                  <span
+                    className={`pill ${
+                      p.status === "Active"
+                        ? "pill-status"
+                        : p.status === "Follow-up"
+                          ? "pill-amber"
+                          : "pill-red"
+                    }`}
+                  >
+                    {p.status}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={`pill ${
+                      p.risk === "High"
+                        ? "pill-high"
+                        : p.risk === "Medium"
+                          ? "pill-medium"
+                          : "pill-low"
+                    }`}
+                  >
+                    {p.risk}
+                  </span>
+                </td>
+                <td>{p.primaryCondition}</td>
+                <td>{formatDate(p.lastVisit)}</td>
+                <td>{p.email} | {p.phone}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
