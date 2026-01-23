@@ -1,6 +1,6 @@
-import { Activity, LogOut, Bell } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import type { User } from '../types';
+import { Activity, LogOut, Bell } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { User } from "../types";
 
 interface MenuItem<T extends string> {
   id: T;
@@ -15,6 +15,10 @@ interface DashboardLayoutProps<T extends string> {
   activeView: T;
   onViewChange: (view: T) => void;
   onEditProfile?: () => void;
+
+  // ✅ NEW: open notifications screen
+  onShowNotifications?: () => void;
+
   children: React.ReactNode;
 }
 
@@ -25,6 +29,7 @@ export function DashboardLayout<T extends string>({
   activeView,
   onViewChange,
   onEditProfile,
+  onShowNotifications,
   children,
 }: DashboardLayoutProps<T>) {
   return (
@@ -53,8 +58,8 @@ export function DashboardLayout<T extends string>({
                   onClick={() => onViewChange(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     activeView === item.id
-                      ? 'bg-blue-800 text-white'
-                      : 'text-blue-200 hover:bg-blue-800/50'
+                      ? "bg-blue-800 text-white"
+                      : "text-blue-200 hover:bg-blue-800/50"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -67,11 +72,15 @@ export function DashboardLayout<T extends string>({
 
         <div className="p-4 border-t border-blue-800">
           <div className="mb-4 p-3 bg-blue-800 rounded-lg">
-            <button onClick={() => onEditProfile?.()} className="text-white text-sm text-left w-full">
+            <button
+              onClick={() => onEditProfile?.()}
+              className="text-white text-sm text-left w-full"
+            >
               {user.name}
             </button>
             <div className="text-blue-300 text-sm capitalize">{user.role}</div>
           </div>
+
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-blue-200 hover:bg-blue-800/50 transition-colors"
@@ -87,10 +96,28 @@ export function DashboardLayout<T extends string>({
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-gray-900 text-xl font-semibold">Welcome, <button onClick={() => onEditProfile?.()} className="text-blue-600 hover:underline">{user.name}</button></h1>
-              <p className="text-gray-500">Manage your healthcare operations efficiently</p>
+              <h1 className="text-gray-900 text-xl font-semibold">
+                Welcome,{" "}
+                <button
+                  onClick={() => onEditProfile?.()}
+                  className="text-blue-600 hover:underline"
+                >
+                  {user.name}
+                </button>
+              </h1>
+              <p className="text-gray-500">
+                Manage your healthcare operations efficiently
+              </p>
             </div>
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+
+            <button
+              type="button"
+              onClick={() => onShowNotifications?.()}
+              disabled={!onShowNotifications}
+              className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Notifications"
+              title={onShowNotifications ? "Notifications" : "Notifications not available"}
+            >
               <Bell className="w-6 h-6 text-gray-600" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>

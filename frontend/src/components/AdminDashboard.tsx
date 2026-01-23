@@ -1,23 +1,24 @@
-import { useState } from 'react';
-import type { User } from '../types';
-import { DashboardLayout } from './DashboardLayout';
-import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock } from 'lucide-react';
+import { useState } from "react";
+import type { User } from "../types";
+import { DashboardLayout } from "./DashboardLayout";
+import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock } from "lucide-react";
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
+  onShowNotifications: () => void; // ✅ NEW
 }
 
-type AdminView = 'analytics' | 'users' | 'system' | 'reports';
+type AdminView = "analytics" | "users" | "system" | "reports";
 
-export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
-  const [activeView, setActiveView] = useState<AdminView>('analytics');
+export function AdminDashboard({ user, onLogout, onShowNotifications }: AdminDashboardProps) {
+  const [activeView, setActiveView] = useState<AdminView>("analytics");
 
   const menuItems = [
-    { id: 'analytics' as AdminView, label: 'Analytics Dashboard', icon: BarChart3 },
-    { id: 'users' as AdminView, label: 'User Management', icon: Users },
-    { id: 'system' as AdminView, label: 'System Health', icon: Activity },
-    { id: 'reports' as AdminView, label: 'Reports', icon: TrendingUp },
+    { id: "analytics" as AdminView, label: "Analytics Dashboard", icon: BarChart3 },
+    { id: "users" as AdminView, label: "User Management", icon: Users },
+    { id: "system" as AdminView, label: "System Health", icon: Activity },
+    { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
   ];
 
   return (
@@ -27,11 +28,12 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       menuItems={menuItems}
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as AdminView)}
+      onShowNotifications={onShowNotifications} // ✅ NEW (bell works now)
     >
-      {activeView === 'analytics' && <AnalyticsDashboard />}
-      {activeView === 'users' && <UserManagement />}
-      {activeView === 'system' && <SystemHealth />}
-      {activeView === 'reports' && <Reports />}
+      {activeView === "analytics" && <AnalyticsDashboard />}
+      {activeView === "users" && <UserManagement />}
+      {activeView === "system" && <SystemHealth />}
+      {activeView === "reports" && <Reports />}
     </DashboardLayout>
   );
 }
@@ -113,7 +115,7 @@ function AnalyticsDashboard() {
                   style={{ height: `${(value / 100) * 100}%` }}
                 ></div>
                 <div className="text-gray-500 text-sm">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][idx]}
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][idx]}
                 </div>
               </div>
             ))}
@@ -124,10 +126,10 @@ function AnalyticsDashboard() {
           <h3 className="text-gray-900 mb-4">System Usage</h3>
           <div className="space-y-4">
             {[
-              { label: 'Patient Records Access', value: 87, color: 'bg-blue-600' },
-              { label: 'Appointment Scheduling', value: 72, color: 'bg-green-600' },
-              { label: 'Prescription Management', value: 64, color: 'bg-purple-600' },
-              { label: 'Lab Results Entry', value: 58, color: 'bg-orange-600' },
+              { label: "Patient Records Access", value: 87, color: "bg-blue-600" },
+              { label: "Appointment Scheduling", value: 72, color: "bg-green-600" },
+              { label: "Prescription Management", value: 64, color: "bg-purple-600" },
+              { label: "Lab Results Entry", value: 58, color: "bg-orange-600" },
             ].map((item, idx) => (
               <div key={idx}>
                 <div className="flex items-center justify-between mb-2">
@@ -152,28 +154,28 @@ function AnalyticsDashboard() {
         <div className="space-y-3">
           {[
             {
-              user: 'Dr. Abebe Kebede',
-              action: 'Updated patient record',
-              patient: 'Alemayehu Girma',
-              time: '5 minutes ago',
+              user: "Dr. Abebe Kebede",
+              action: "Updated patient record",
+              patient: "Alemayehu Girma",
+              time: "5 minutes ago",
             },
             {
-              user: 'Nurse Tigist Alemu',
-              action: 'Scheduled appointment',
-              patient: 'Sara Mohammed',
-              time: '12 minutes ago',
+              user: "Nurse Tigist Alemu",
+              action: "Scheduled appointment",
+              patient: "Sara Mohammed",
+              time: "12 minutes ago",
             },
             {
-              user: 'Dr. Solomon Tesfaye',
-              action: 'Created prescription',
-              patient: 'Daniel Bekele',
-              time: '23 minutes ago',
+              user: "Dr. Solomon Tesfaye",
+              action: "Created prescription",
+              patient: "Daniel Bekele",
+              time: "23 minutes ago",
             },
             {
-              user: 'Admin Team',
-              action: 'Generated monthly report',
-              patient: 'System',
-              time: '1 hour ago',
+              user: "Admin Team",
+              action: "Generated monthly report",
+              patient: "System",
+              time: "1 hour ago",
             },
           ].map((activity, idx) => (
             <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -194,10 +196,10 @@ function AnalyticsDashboard() {
 
 function UserManagement() {
   const users = [
-    { id: 1, name: 'Dr. Abebe Kebede', role: 'Doctor', email: 'abebe.k@healthlink.et', status: 'Active' },
-    { id: 2, name: 'Nurse Tigist Alemu', role: 'Nurse', email: 'tigist.a@healthlink.et', status: 'Active' },
-    { id: 3, name: 'Dr. Solomon Tesfaye', role: 'Doctor', email: 'solomon.t@healthlink.et', status: 'Active' },
-    { id: 4, name: 'Admin User', role: 'Administrator', email: 'admin@healthlink.et', status: 'Active' },
+    { id: 1, name: "Dr. Abebe Kebede", role: "Doctor", email: "abebe.k@healthlink.et", status: "Active" },
+    { id: 2, name: "Nurse Tigist Alemu", role: "Nurse", email: "tigist.a@healthlink.et", status: "Active" },
+    { id: 3, name: "Dr. Solomon Tesfaye", role: "Doctor", email: "solomon.t@healthlink.et", status: "Active" },
+    { id: 4, name: "Admin User", role: "Administrator", email: "admin@healthlink.et", status: "Active" },
   ];
 
   return (
@@ -303,10 +305,10 @@ function Reports() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          { title: 'Monthly Patient Report', date: 'January 2024', type: 'Patient Analytics' },
-          { title: 'Appointment Statistics', date: 'Q4 2023', type: 'Operations' },
-          { title: 'Prescription Summary', date: 'December 2023', type: 'Clinical' },
-          { title: 'System Usage Report', date: 'January 2024', type: 'Technical' },
+          { title: "Monthly Patient Report", date: "January 2024", type: "Patient Analytics" },
+          { title: "Appointment Statistics", date: "Q4 2023", type: "Operations" },
+          { title: "Prescription Summary", date: "December 2023", type: "Clinical" },
+          { title: "System Usage Report", date: "January 2024", type: "Technical" },
         ].map((report, idx) => (
           <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h3 className="text-gray-900 mb-2">{report.title}</h3>

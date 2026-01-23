@@ -1,25 +1,26 @@
-import { useState } from 'react';
-import type { User } from '../types';
-import { DashboardLayout } from './DashboardLayout';
-import { PatientRecords } from './PatientRecords';
-import { Appointments } from './Appointments';
-import { Users, Calendar, Activity, Clipboard } from 'lucide-react';
+import { useState } from "react";
+import type { User } from "../types";
+import { DashboardLayout } from "./DashboardLayout";
+import { PatientRecords } from "./PatientRecords";
+import { Appointments } from "./Appointments";
+import { Users, Calendar, Activity, Clipboard } from "lucide-react";
 
 interface NurseDashboardProps {
   user: User;
   onLogout: () => void;
+  onShowNotifications: () => void; // ✅ NEW
 }
 
-type NurseView = 'overview' | 'patients' | 'appointments' | 'vitals';
+type NurseView = "overview" | "patients" | "appointments" | "vitals";
 
-export function NurseDashboard({ user, onLogout }: NurseDashboardProps) {
-  const [activeView, setActiveView] = useState<NurseView>('overview');
+export function NurseDashboard({ user, onLogout, onShowNotifications }: NurseDashboardProps) {
+  const [activeView, setActiveView] = useState<NurseView>("overview");
 
   const menuItems = [
-    { id: 'overview' as NurseView, label: 'Overview', icon: Activity },
-    { id: 'patients' as NurseView, label: 'Patient Records', icon: Users },
-    { id: 'appointments' as NurseView, label: 'Appointments', icon: Calendar },
-    { id: 'vitals' as NurseView, label: 'Vital Signs', icon: Clipboard },
+    { id: "overview" as NurseView, label: "Overview", icon: Activity },
+    { id: "patients" as NurseView, label: "Patient Records", icon: Users },
+    { id: "appointments" as NurseView, label: "Appointments", icon: Calendar },
+    { id: "vitals" as NurseView, label: "Vital Signs", icon: Clipboard },
   ];
 
   return (
@@ -29,11 +30,12 @@ export function NurseDashboard({ user, onLogout }: NurseDashboardProps) {
       menuItems={menuItems}
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as NurseView)}
+      onShowNotifications={onShowNotifications} // ✅ NEW (bell works now)
     >
-      {activeView === 'overview' && <NurseOverview />}
-      {activeView === 'patients' && <PatientRecords userRole="nurse" />}
-      {activeView === 'appointments' && <Appointments userRole="nurse" />}
-      {activeView === 'vitals' && <VitalSigns />}
+      {activeView === "overview" && <NurseOverview />}
+      {activeView === "patients" && <PatientRecords userRole="nurse" />}
+      {activeView === "appointments" && <Appointments userRole="nurse" />}
+      {activeView === "vitals" && <VitalSigns />}
     </DashboardLayout>
   );
 }
@@ -79,10 +81,10 @@ function NurseOverview() {
         <h3 className="text-gray-900 mb-4">Today's Tasks</h3>
         <div className="space-y-3">
           {[
-            { task: 'Record vitals for Alemayehu Girma', time: '09:00 AM', status: 'Completed' },
-            { task: 'Prepare treatment room for Sara Mohammed', time: '10:00 AM', status: 'In Progress' },
-            { task: 'Administer medication to Daniel Bekele', time: '11:30 AM', status: 'Pending' },
-            { task: 'Update patient charts', time: '02:00 PM', status: 'Pending' },
+            { task: "Record vitals for Alemayehu Girma", time: "09:00 AM", status: "Completed" },
+            { task: "Prepare treatment room for Sara Mohammed", time: "10:00 AM", status: "In Progress" },
+            { task: "Administer medication to Daniel Bekele", time: "11:30 AM", status: "Pending" },
+            { task: "Update patient charts", time: "02:00 PM", status: "Pending" },
           ].map((item, idx) => (
             <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
@@ -91,11 +93,11 @@ function NurseOverview() {
               </div>
               <span
                 className={`px-3 py-1 rounded-full text-sm ${
-                  item.status === 'Completed'
-                    ? 'bg-green-100 text-green-700'
-                    : item.status === 'In Progress'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-200 text-gray-700'
+                  item.status === "Completed"
+                    ? "bg-green-100 text-green-700"
+                    : item.status === "In Progress"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-200 text-gray-700"
                 }`}
               >
                 {item.status}
@@ -124,31 +126,31 @@ function VitalSigns() {
         <div className="space-y-4">
           {[
             {
-              patient: 'Alemayehu Girma',
-              patientId: 'P001',
-              bp: '130/85',
-              hr: '72',
-              temp: '36.8°C',
-              spo2: '98%',
-              time: '09:15 AM',
+              patient: "Alemayehu Girma",
+              patientId: "P001",
+              bp: "130/85",
+              hr: "72",
+              temp: "36.8°C",
+              spo2: "98%",
+              time: "09:15 AM",
             },
             {
-              patient: 'Sara Mohammed',
-              patientId: 'P002',
-              bp: '120/80',
-              hr: '68',
-              temp: '37.0°C',
-              spo2: '99%',
-              time: '10:30 AM',
+              patient: "Sara Mohammed",
+              patientId: "P002",
+              bp: "120/80",
+              hr: "68",
+              temp: "37.0°C",
+              spo2: "99%",
+              time: "10:30 AM",
             },
             {
-              patient: 'Daniel Bekele',
-              patientId: 'P003',
-              bp: '135/88',
-              hr: '75',
-              temp: '36.5°C',
-              spo2: '97%',
-              time: '11:45 AM',
+              patient: "Daniel Bekele",
+              patientId: "P003",
+              bp: "135/88",
+              hr: "75",
+              temp: "36.5°C",
+              spo2: "97%",
+              time: "11:45 AM",
             },
           ].map((vital, idx) => (
             <div key={idx} className="border border-gray-200 rounded-lg p-4">
