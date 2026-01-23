@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, LogOut, Bell, Menu, X } from "lucide-react";
+import { Activity, LogOut, Bell, Menu } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { User } from "../types";
 
