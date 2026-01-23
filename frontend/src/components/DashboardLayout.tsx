@@ -1,13 +1,7 @@
-Dtabase_Config_Structure
 import { useState } from "react";
 import { Activity, LogOut, Bell, Menu, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { User } from "../types";
-import { Bell } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import type { User } from '../types';
-import SideNav from './SideNav';
-main
 
 interface MenuItem<T extends string> {
   id: T;
@@ -22,10 +16,7 @@ interface DashboardLayoutProps<T extends string> {
   activeView: T;
   onViewChange: (view: T) => void;
   onEditProfile?: () => void;
-
-  // ✅ notifications
   onShowNotifications?: () => void;
-
   children: React.ReactNode;
 }
 
@@ -39,11 +30,11 @@ export function DashboardLayout<T extends string>({
   onShowNotifications,
   children,
 }: DashboardLayoutProps<T>) {
-Dtabase_Config_Structure
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const Sidebar = (
     <div className="h-full w-64 bg-blue-900 text-white flex flex-col">
+      {/* Sidebar header */}
       <div className="p-6 border-b border-blue-800">
         <div className="flex items-center gap-3">
           <div className="bg-white p-2 rounded-lg">
@@ -56,6 +47,7 @@ Dtabase_Config_Structure
         </div>
       </div>
 
+      {/* Menu */}
       <nav className="flex-1 p-4">
         <div className="space-y-2">
           {menuItems.map((item) => {
@@ -65,7 +57,7 @@ Dtabase_Config_Structure
                 key={item.id}
                 onClick={() => {
                   onViewChange(item.id);
-                  setMobileOpen(false); // ✅ close drawer after selecting
+                  setMobileOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   activeView === item.id
@@ -81,6 +73,7 @@ Dtabase_Config_Structure
         </div>
       </nav>
 
+      {/* User info + logout */}
       <div className="p-4 border-t border-blue-800">
         <div className="mb-4 p-3 bg-blue-800 rounded-lg">
           <button
@@ -104,8 +97,8 @@ Dtabase_Config_Structure
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ✅ Mobile sidebar drawer */}
+    <div className="min-h-screen flex">
+      {/* Mobile sidebar drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
@@ -116,97 +109,55 @@ Dtabase_Config_Structure
         </div>
       )}
 
-      <div className="min-h-screen flex">
-        {/* ✅ Desktop sidebar only */}
-        <div className="hidden lg:block">{Sidebar}</div>
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">{Sidebar}</div>
 
-        {/* Main */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <header className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                {/* ✅ Mobile menu button */}
-                <button
-                  type="button"
-                  className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  onClick={() => setMobileOpen(true)}
-                  aria-label="Open menu"
-                >
-                  <Menu className="w-6 h-6 text-gray-700" />
-                </button>
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              type="button"
+              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu className="w-6 h-6 text-gray-700" />
+            </button>
 
-                <div className="min-w-0">
-                  <h1 className="text-gray-900 text-base sm:text-xl font-semibold truncate">
-                    Welcome,{" "}
-                    <button
-                      onClick={() => onEditProfile?.()}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {user.name}
-                    </button>
-                  </h1>
-                  <p className="text-gray-500 text-sm hidden sm:block">
-                    Manage your healthcare operations efficiently
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* ✅ Close icon if you want it beside bell (optional) */}
-                {mobileOpen && (
-                  <button
-                    type="button"
-                    className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    onClick={() => setMobileOpen(false)}
-                    aria-label="Close menu"
-                  >
-                    <X className="w-6 h-6 text-gray-700" />
-                  </button>
-                )}
-
-                {/* ✅ Notifications button kept exactly */}
-                <button
-                  type="button"
-                  onClick={() => onShowNotifications?.()}
-                  disabled={!onShowNotifications}
-                  className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Notifications"
-                  title={
-                    onShowNotifications
-                      ? "Notifications"
-                      : "Notifications not available"
-                  }
-                >
-                  <Bell className="w-6 h-6 text-gray-600" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-                </button>
-              </div>
-  return (
-    <div className="min-h-screen">
-      <SideNav
-        user={user}
-        menuItems={menuItems as any}
-        activeView={activeView as string}
-        onViewChange={(v) => onViewChange(v as T)}
-        onEditProfile={onEditProfile}
-        onLogout={onLogout}
-      />
-
-      {/* Main (offset on md+ to account for fixed sidebar) */}
-      <div className="flex-1 flex flex-col md:ml-64">
-        <header className="bg-white border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-gray-900 text-xl font-semibold">Welcome, <button onClick={() => onEditProfile?.()} className="text-blue-600 hover:underline">{user.name}</button></h1>
-              <p className="text-gray-500">Manage your healthcare operations efficiently</p>
-main
+              <h1 className="text-gray-900 text-base sm:text-xl font-semibold truncate">
+                Welcome,{" "}
+                <button
+                  onClick={() => onEditProfile?.()}
+                  className="text-blue-600 hover:underline"
+                >
+                  {user.name}
+                </button>
+              </h1>
+              <p className="text-gray-500 text-sm hidden sm:block">
+                Manage your healthcare operations efficiently
+              </p>
             </div>
-          </header>
+          </div>
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto min-w-0">
-            {children}
-          </main>
-        </div>
+          {/* Notifications button */}
+          <button
+            type="button"
+            onClick={() => onShowNotifications?.()}
+            disabled={!onShowNotifications}
+            className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Notifications"
+          >
+            <Bell className="w-6 h-6 text-gray-600" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          </button>
+        </header>
+
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto min-w-0">
+          {children}
+        </main>
       </div>
     </div>
   );

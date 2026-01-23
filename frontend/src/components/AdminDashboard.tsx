@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
-import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock } from "lucide-react";
+import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock, X } from "lucide-react";
 
 interface AdminDashboardProps {
   user: User;
@@ -324,7 +324,7 @@ function UserManagement() {
             <option value="Doctor">Doctor</option>
             <option value="Nurse">Nurse</option>
             <option value="Administrator">Administrator</option>
-            <option value="Lab Technician">Lab Technician</option>
+            <option value="Receptor">Receptor</option>
           </select>
         </div>
         

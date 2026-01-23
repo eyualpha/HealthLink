@@ -1,42 +1,31 @@
-Dtabase_Config_Structure
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type { User } from "./types";
+import api from './lib/api';
+
+// Components
 import { Login } from "./components/Login";
 import { DoctorDashboard } from "./components/DoctorDashboard";
 import { NurseDashboard } from "./components/NurseDashboard";
 import { PatientDashboard } from "./components/PatientDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import Notifications from "./components/Notifications";
-
-import type { User } from "./types";
-
-import { useState, useEffect } from 'react';
-import { Login } from './components/Login';
-import { DoctorDashboard } from './components/DoctorDashboard';
-import { NurseDashboard } from './components/NurseDashboard';
-import { PatientDashboard } from './components/PatientDashboard';
-import { AdminDashboard } from './components/AdminDashboard';
-import type { User } from './types';
-import api from './lib/api';
-main
+import { ReceptionDashboard } from "./components/ReceptorDashboard";
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    const s = api.getSession();
-    if (s?.user) setCurrentUser(s.user);
+    const session = api.getSession();
+    if (session?.user) setCurrentUser(session.user);
   }, []);
 
   const handleLogin = (user: User) => setCurrentUser(user);
-  const handleLogout = () => {
-Dtabase_Config_Structure
-    setCurrentUser(null);
-    setShowNotifications(false);
 
+  const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
-   main
+    setShowNotifications(false);
   };
 
   // If not logged in, show login screen
@@ -44,56 +33,59 @@ Dtabase_Config_Structure
 
   // If notifications is open, show notifications page
   if (showNotifications) {
-    return (
-      <Notifications
-        onBack={() => setShowNotifications(false)}
-      />
-    );
+    return <Notifications onBack={() => setShowNotifications(false)} />;
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-Dtabase_Config_Structure
-      {currentUser.role === "doctor" && (
+  // Render dashboard based on role
+  switch (currentUser.role) {
+    case "doctor":
+    case "clinician":
+      return (
         <DoctorDashboard
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
         />
-      )}
+      );
 
-      {currentUser.role === "nurse" && (
+    case "nurse":
+    
+      return (
         <NurseDashboard
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
         />
+      );
 
-      {(currentUser.role === 'doctor' || currentUser.role === 'clinician') && (
-        <DoctorDashboard user={currentUser} onLogout={handleLogout} />
-      )}
-      {(currentUser.role === 'nurse' || currentUser.role === 'reception') && (
-        <NurseDashboard user={currentUser} onLogout={handleLogout} />
- main
-      )}
-
-      {currentUser.role === "patient" && (
+    case "patient":
+      return (
         <PatientDashboard
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
         />
-      )}
-
-      {currentUser.role === "admin" && (
+      );
+    case "reception":
+      return (
+        <ReceptionDashboard
+          user={currentUser}
+          onLogout={handleLogout}
+          onShowNotifications={() => setShowNotifications(true)}
+        />
+      );
+    case "admin":
+      return (
         <AdminDashboard
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
         />
-      )}
-    </div>
-  );
+      );
+
+    default:
+      return <Login onLogin={handleLogin} />;
+  }
 }
 
 export default App;
