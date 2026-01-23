@@ -53,6 +53,18 @@ export async function getMyAppointments() {
   return res.json();
 }
 
+export async function getAppointments(params: { patientId?: string; doctorId?: string; page?: number; limit?: number } = {}) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/appointments`);
+  if (params.patientId) url.searchParams.set('patientId', params.patientId);
+  if (params.doctorId) url.searchParams.set('doctorId', params.doctorId);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.limit) url.searchParams.set('limit', String(params.limit));
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export async function createAppointment(payload: any) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/appointments`, {
@@ -113,6 +125,18 @@ export async function getUsers() {
   return res.json();
 }
 
+export async function getPrescriptions(params: { patientId?: string; doctorId?: string; page?: number; limit?: number } = {}) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/prescriptions`);
+  if (params.patientId) url.searchParams.set('patientId', params.patientId);
+  if (params.doctorId) url.searchParams.set('doctorId', params.doctorId);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.limit) url.searchParams.set('limit', String(params.limit));
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export async function createUser(payload: { name: string; email: string; password: string; role: string }) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/users`, {
@@ -135,5 +159,6 @@ export default {
   updatePatient,
   getAuditLogs,
   getUsers,
+  getPrescriptions,
   createUser,
 };

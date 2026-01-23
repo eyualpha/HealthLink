@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { Calendar, Clock, Plus, Search, User, X, FileText } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import { Calendar, Clock, Plus, Search, User, X, FileText } from "lucide-react";
+import { getAppointments } from "../lib/api";
 
 interface AppointmentsProps {
-  userRole: 'doctor' | 'nurse' | 'patient';
+  userRole: "doctor" | "nurse" | "patient";
 }
 
 export interface Appointment {
@@ -12,95 +13,99 @@ export interface Appointment {
   date: string;
   time: string;
   type: string;
-  status: 'Scheduled' | 'Completed' | 'Cancelled' | 'In Progress';
+  status: "Scheduled" | "Completed" | "Cancelled" | "In Progress";
   notes?: string;
 }
 
 const initialAppointments: Appointment[] = [
   {
-    id: 'APT001',
-    patientName: 'Alemayehu Girma',
-    doctorName: 'Dr. Abebe Kebede',
-    date: '2024-01-15',
-    time: '09:00',
-    type: 'Follow-up',
-    status: 'Completed',
-    notes: 'Diabetes check-up',
+    id: "APT001",
+    patientName: "Alemayehu Girma",
+    doctorName: "Dr. Abebe Kebede",
+    date: "2024-01-15",
+    time: "09:00",
+    type: "Follow-up",
+    status: "Completed",
+    notes: "Diabetes check-up",
   },
   {
-    id: 'APT002',
-    patientName: 'Sara Mohammed',
-    doctorName: 'Dr. Abebe Kebede',
-    date: '2024-01-15',
-    time: '10:00',
-    type: 'New Patient',
-    status: 'In Progress',
+    id: "APT002",
+    patientName: "Sara Mohammed",
+    doctorName: "Dr. Abebe Kebede",
+    date: "2024-01-15",
+    time: "10:00",
+    type: "New Patient",
+    status: "In Progress",
   },
   {
-    id: 'APT003',
-    patientName: 'Daniel Bekele',
-    doctorName: 'Dr. Abebe Kebede',
-    date: '2024-01-15',
-    time: '11:30',
-    type: 'Check-up',
-    status: 'Scheduled',
+    id: "APT003",
+    patientName: "Daniel Bekele",
+    doctorName: "Dr. Abebe Kebede",
+    date: "2024-01-15",
+    time: "11:30",
+    type: "Check-up",
+    status: "Scheduled",
   },
   {
-    id: 'APT004',
-    patientName: 'Hiwot Tadesse',
-    doctorName: 'Dr. Abebe Kebede',
-    date: '2024-01-15',
-    time: '14:00',
-    type: 'Consultation',
-    status: 'Scheduled',
+    id: "APT004",
+    patientName: "Hiwot Tadesse",
+    doctorName: "Dr. Abebe Kebede",
+    date: "2024-01-15",
+    time: "14:00",
+    type: "Consultation",
+    status: "Scheduled",
   },
   {
-    id: 'APT005',
-    patientName: 'Mekdes Hailu',
-    doctorName: 'Dr. Abebe Kebede',
-    date: '2024-01-16',
-    time: '09:30',
-    type: 'Follow-up',
-    status: 'Scheduled',
+    id: "APT005",
+    patientName: "Mekdes Hailu",
+    doctorName: "Dr. Abebe Kebede",
+    date: "2024-01-16",
+    time: "09:30",
+    type: "Follow-up",
+    status: "Scheduled",
   },
 ];
 
 function formatTimeHHmmToAMPM(hhmm: string) {
-  const [hStr, mStr] = hhmm.split(':');
+  const [hStr, mStr] = hhmm.split(":");
   const h = Number(hStr);
   const m = Number(mStr);
-  const suffix = h >= 12 ? 'PM' : 'AM';
+  const suffix = h >= 12 ? "PM" : "AM";
   const hour12 = ((h + 11) % 12) + 1;
-  const mm = String(m).padStart(2, '0');
-  return `${String(hour12).padStart(2, '0')}:${mm} ${suffix}`;
+  const mm = String(m).padStart(2, "0");
+  return `${String(hour12).padStart(2, "0")}:${mm} ${suffix}`;
 }
 
 function nextId(existing: Appointment[]) {
   const nums = existing
-    .map((a) => a.id.replace('APT', ''))
+    .map((a) => a.id.replace("APT", ""))
     .map((n) => Number(n))
     .filter((n) => !Number.isNaN(n));
   const max = nums.length ? Math.max(...nums) : 0;
-  return `APT${String(max + 1).padStart(3, '0')}`;
+  return `APT${String(max + 1).padStart(3, "0")}`;
 }
 
-function statusBadge(status: Appointment['status']) {
-  if (status === 'Completed') return 'bg-green-100 text-green-700';
-  if (status === 'In Progress') return 'bg-blue-100 text-blue-700';
-  if (status === 'Cancelled') return 'bg-red-100 text-red-700';
-  return 'bg-gray-200 text-gray-700';
+function statusBadge(status: Appointment["status"]) {
+  if (status === "Completed") return "bg-green-100 text-green-700";
+  if (status === "In Progress") return "bg-blue-100 text-blue-700";
+  if (status === "Cancelled") return "bg-red-100 text-red-700";
+  return "bg-gray-200 text-gray-700";
 }
 
 export function Appointments({ userRole }: AppointmentsProps) {
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [appointments, setAppointments] =
+    useState<Appointment[]>(initialAppointments);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [showNewModal, setShowNewModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt) => {
@@ -108,7 +113,8 @@ export function Appointments({ userRole }: AppointmentsProps) {
         apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         apt.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesStatus = filterStatus === 'all' || apt.status === filterStatus;
+      const matchesStatus =
+        filterStatus === "all" || apt.status === filterStatus;
 
       return matchesSearch && matchesStatus;
     });
@@ -126,15 +132,15 @@ export function Appointments({ userRole }: AppointmentsProps) {
 
   const cancelAppointment = (apt: Appointment) => {
     setAppointments((prev) =>
-      prev.map((x) => (x.id === apt.id ? { ...x, status: 'Cancelled' } : x))
+      prev.map((x) => (x.id === apt.id ? { ...x, status: "Cancelled" } : x)),
     );
   };
 
-  const addAppointment = (data: Omit<Appointment, 'id' | 'status'>) => {
+  const addAppointment = (data: Omit<Appointment, "id" | "status">) => {
     setAppointments((prev) => [
       {
         id: nextId(prev),
-        status: 'Scheduled',
+        status: "Scheduled",
         ...data,
       },
       ...prev,
@@ -149,12 +155,58 @@ export function Appointments({ userRole }: AppointmentsProps) {
               ...x,
               date,
               time,
-              status: x.status === 'Cancelled' ? 'Scheduled' : x.status,
+              status: x.status === "Cancelled" ? "Scheduled" : x.status,
             }
-          : x
-      )
+          : x,
+      ),
     );
   };
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getAppointments({});
+        const items = res.items || res;
+        const mapped: Appointment[] = (items || []).map(
+          (a: any): Appointment => {
+            const statusRaw = (a.status || "Scheduled").toString();
+            const statusCap =
+              statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
+            return {
+              id: a._id || a.id || "APT",
+              patientName:
+                a.patientName || a.patient?.name || a.patientId || "Patient",
+              doctorName: a.doctorName || a.doctorId || "Doctor",
+              date: a.appointementDate?.slice(0, 10) || a.date || "",
+              time: a.appointementTime || a.time || "09:00",
+              type: a.appointementType || a.type || "Appointment",
+              status: ([
+                "Scheduled",
+                "Completed",
+                "Cancelled",
+                "In Progress",
+              ].includes(statusCap)
+                ? statusCap
+                : "Scheduled") as Appointment["status"],
+              notes: a.notes,
+            };
+          },
+        );
+        if (mapped.length) {
+          setAppointments(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load appointments", err);
+        setError("Failed to load appointments. Showing sample data.");
+        setAppointments(initialAppointments);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -162,7 +214,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-gray-900">Appointments</h2>
 
-        {(userRole === 'doctor' || userRole === 'nurse') && (
+        {(userRole === "doctor" || userRole === "nurse") && (
           <button
             onClick={() => setShowNewModal(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -201,6 +253,12 @@ export function Appointments({ userRole }: AppointmentsProps) {
         </div>
 
         <div className="space-y-4">
+          {loading && (
+            <div className="text-gray-500 text-sm">Loading appointments...</div>
+          )}
+          {error && !loading && (
+            <div className="text-red-600 text-sm">{error}</div>
+          )}
           {filteredAppointments.map((appointment) => (
             <div
               key={appointment.id}
@@ -218,7 +276,9 @@ export function Appointments({ userRole }: AppointmentsProps) {
                     <div className="text-gray-900 mb-1 font-medium break-words">
                       {appointment.patientName}
                     </div>
-                    <div className="text-gray-600 text-sm mb-2">{appointment.type}</div>
+                    <div className="text-gray-600 text-sm mb-2">
+                      {appointment.type}
+                    </div>
 
                     {/* ✅ better wrap on mobile */}
                     <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 text-sm text-gray-500">
@@ -230,7 +290,9 @@ export function Appointments({ userRole }: AppointmentsProps) {
                         <Clock className="w-4 h-4" />
                         {formatTimeHHmmToAMPM(appointment.time)}
                       </div>
-                      <div className="text-gray-500 text-sm">• {appointment.doctorName}</div>
+                      <div className="text-gray-500 text-sm">
+                        • {appointment.doctorName}
+                      </div>
                     </div>
 
                     {appointment.notes && (
@@ -245,10 +307,14 @@ export function Appointments({ userRole }: AppointmentsProps) {
                 <div className="flex flex-col gap-3 sm:items-end">
                   {/* status */}
                   <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-                    <span className={`px-3 py-1 rounded-full text-sm ${statusBadge(appointment.status)}`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm ${statusBadge(appointment.status)}`}
+                    >
                       {appointment.status}
                     </span>
-                    <span className="text-xs text-gray-400">#{appointment.id}</span>
+                    <span className="text-xs text-gray-400">
+                      #{appointment.id}
+                    </span>
                   </div>
 
                   {/* ✅ actions wrap instead of overflowing */}
@@ -261,7 +327,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
                       View Details
                     </button>
 
-                    {userRole !== 'patient' && (
+                    {userRole !== "patient" && (
                       <>
                         <button
                           onClick={() => openReschedule(appointment)}
@@ -284,7 +350,9 @@ export function Appointments({ userRole }: AppointmentsProps) {
           ))}
 
           {filteredAppointments.length === 0 && (
-            <div className="text-gray-500 text-sm text-center py-10">No appointments found.</div>
+            <div className="text-gray-500 text-sm text-center py-10">
+              No appointments found.
+            </div>
           )}
         </div>
       </div>
@@ -338,7 +406,10 @@ function ModalShell({
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="bg-blue-600 text-white p-6 flex items-center justify-between">
           <h3 className="text-white">{title}</h3>
-          <button onClick={onClose} className="p-2 hover:bg-blue-700 rounded-lg transition-colors">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-blue-700 rounded-lg transition-colors"
+          >
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -353,14 +424,14 @@ function NewAppointmentModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (data: Omit<Appointment, 'id' | 'status'>) => void;
+  onCreate: (data: Omit<Appointment, "id" | "status">) => void;
 }) {
-  const [patientName, setPatientName] = useState('');
-  const [doctorName, setDoctorName] = useState('Dr. Abebe Kebede');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [type, setType] = useState('Check-up');
-  const [notes, setNotes] = useState('');
+  const [patientName, setPatientName] = useState("");
+  const [doctorName, setDoctorName] = useState("Dr. Abebe Kebede");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [type, setType] = useState("Check-up");
+  const [notes, setNotes] = useState("");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -464,7 +535,9 @@ function NewAppointmentModal({
           </button>
         </div>
 
-        <p className="text-xs text-gray-500">Demo mode: this saves to local state only (no backend yet).</p>
+        <p className="text-xs text-gray-500">
+          Demo mode: this saves to local state only (no backend yet).
+        </p>
       </form>
     </ModalShell>
   );
@@ -494,7 +567,8 @@ function RescheduleModal({
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
           <div className="text-gray-900">{appointment.patientName}</div>
           <div className="text-gray-600">
-            Current: {appointment.date} • {formatTimeHHmmToAMPM(appointment.time)}
+            Current: {appointment.date} •{" "}
+            {formatTimeHHmmToAMPM(appointment.time)}
           </div>
         </div>
 
@@ -571,7 +645,9 @@ function AppointmentDetailsModal({
           </div>
           <div>
             <div className="text-gray-500">Time</div>
-            <div className="text-gray-900">{formatTimeHHmmToAMPM(appointment.time)}</div>
+            <div className="text-gray-900">
+              {formatTimeHHmmToAMPM(appointment.time)}
+            </div>
           </div>
         </div>
 
@@ -582,7 +658,9 @@ function AppointmentDetailsModal({
 
         <div>
           <div className="text-gray-500">Notes</div>
-          <div className="text-gray-900">{appointment.notes ? appointment.notes : '—'}</div>
+          <div className="text-gray-900">
+            {appointment.notes ? appointment.notes : "—"}
+          </div>
         </div>
 
         <button
