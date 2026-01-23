@@ -17,6 +17,10 @@ import {
   FileText,
   Stethoscope,
   Plus,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
@@ -332,6 +336,8 @@ type StatusFilter = "all" | "Active" | "Inactive";
 
 function UserManagement() {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [showEditUserForm, setShowEditUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [newUser, setNewUser] = useState<NewUserFormData>({
     name: "",
     email: "",
@@ -341,7 +347,17 @@ function UserManagement() {
     password: "",
   });
 
-  const [users, setUsers] = useState<UserRecord[]>([
+  const [users, setUsers] = useState<UserRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem("hl_admin_users");
+      if (raw) {
+        const parsed = JSON.parse(raw) as UserRecord[];
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch (e) {
+      void e;
+    }
+    return [
     {
       id: "u-1",
       name: "Admin User",
@@ -408,7 +424,14 @@ function UserManagement() {
       lastActive: "2026-01-03T09:00:00Z",
       createdAt: "2025-12-12T08:00:00Z",
     },
-  ]);
+  ];
+  });
+
+  // sorting & pagination state (frontend-only)
+  const [sortBy, setSortBy] = useState<keyof UserRecord>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [filters, setFilters] = useState<{
     search: string;
@@ -417,6 +440,11 @@ function UserManagement() {
   }>({ search: "", role: "all", status: "all" });
 
   const reportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("hl_admin_users", JSON.stringify(users)); }
+    catch (e) { void e; }
+  }, [users]);
 
   const roleOptions: RoleFilter[] = [
     "all",
@@ -452,6 +480,45 @@ function UserManagement() {
       .filter((u) => (filters.status === "all" ? true : u.status === filters.status))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [users, filters]);
+
+  const sortedUsers = useMemo(() => {
+    const copy = [...filteredUsers];
+    copy.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      let av = a[sortBy] as unknown as string | number;
+      let bv = b[sortBy] as unknown as string | number;
+      // normalize dates
+      if (sortBy === "lastActive" || sortBy === "createdAt") {
+        av = new Date(String(av)).getTime();
+        bv = new Date(String(bv)).getTime();
+      }
+      if (typeof av === "string" && typeof bv === "string") {
+        return av.localeCompare(bv) * dir;
+      }
+      if (typeof av === "number" && typeof bv === "number") {
+        return (av - bv) * dir;
+      }
+      return 0;
+    });
+    return copy;
+  }, [filteredUsers, sortBy, sortDir]);
+
+  const total = sortedUsers.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedUsers.slice(start, start + pageSize);
+  }, [sortedUsers, currentPage, pageSize]);
+
+  const toggleSort = (field: keyof UserRecord) => {
+    if (sortBy === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortDir("asc");
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -494,6 +561,55 @@ function UserManagement() {
       alert("Could not create user. Check permissions or inputs.");
       console.error(err);
     }
+  };
+
+  const handleEditOpen = (u: UserRecord) => {
+    setEditingUser(u);
+    setShowEditUserForm(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setUsers((prev) => prev.map((x) => (x.id === editingUser.id ? editingUser : x)));
+    setShowEditUserForm(false);
+    setEditingUser(null);
+  };
+
+  const handleToggleStatus = (id: string) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u,
+      ),
+    );
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (!confirm("Remove this user from the list?")) return;
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+  };
+
+  const exportCsv = () => {
+    const headers = ["Name", "Role", "Department", "Email", "Status", "Last Active", "Created At"];
+    const rows = filteredUsers.map((u) => [
+      u.name,
+      u.role,
+      u.department,
+      u.email,
+      u.status,
+      new Date(u.lastActive).toISOString(),
+      new Date(u.createdAt).toISOString(),
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `user-management-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleDownloadPdf = () => {
@@ -567,6 +683,13 @@ function UserManagement() {
           >
             <Download className="w-5 h-5" />
             Download PDF Report
+          </button>
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="w-5 h-5" />
+            Export CSV
           </button>
           <button
             onClick={() => setShowAddUserForm(true)}
@@ -650,16 +773,27 @@ function UserManagement() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 text-gray-700">Name</th>
-                <th className="text-left py-3 px-4 text-gray-700">Role</th>
-                <th className="text-left py-3 px-4 text-gray-700">Department</th>
+                <th className="text-left py-3 px-4 text-gray-700 cursor-pointer" onClick={() => toggleSort("name")}>
+                  Name {sortBy === "name" && <span className="text-gray-400">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700 cursor-pointer" onClick={() => toggleSort("role")}>
+                  Role {sortBy === "role" && <span className="text-gray-400">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700 cursor-pointer" onClick={() => toggleSort("department")}>
+                  Department {sortBy === "department" && <span className="text-gray-400">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
                 <th className="text-left py-3 px-4 text-gray-700">Email</th>
-                <th className="text-left py-3 px-4 text-gray-700">Status</th>
-                <th className="text-left py-3 px-4 text-gray-700">Last active</th>
+                <th className="text-left py-3 px-4 text-gray-700 cursor-pointer" onClick={() => toggleSort("status")}>
+                  Status {sortBy === "status" && <span className="text-gray-400">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700 cursor-pointer" onClick={() => toggleSort("lastActive")}>
+                  Last active {sortBy === "lastActive" && <span className="text-gray-400">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((userRow) => (
+              {pagedUsers.map((userRow) => (
                 <tr key={userRow.id} className="border-t border-gray-200">
                   <td className="py-3 px-4 text-gray-900 font-medium">{userRow.name}</td>
                   <td className="py-3 px-4">
@@ -682,10 +816,73 @@ function UserManagement() {
                   </td>
                   <td className="py-3 px-4">{renderStatusPill(userRow.status)}</td>
                   <td className="py-3 px-4 text-gray-600">{formatDate(userRow.lastActive)}</td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                        onClick={() => handleEditOpen(userRow)}
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" /> Edit
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700"
+                        onClick={() => handleToggleStatus(userRow.id)}
+                        title={userRow.status === "Active" ? "Deactivate" : "Activate"}
+                      >
+                        {userRow.status === "Active" ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1 text-red-600 hover:text-red-700"
+                        onClick={() => handleDeleteUser(userRow.id)}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 border-t border-gray-200 bg-gray-50">
+          <div className="text-sm text-gray-600">
+            Showing {Math.min((page - 1) * pageSize + 1, total)}-
+            {Math.min(page * pageSize, total)} of {total}
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-600">Rows per page</label>
+            <select
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(parseInt(e.target.value, 10));
+                setPage(1);
+              }}
+            >
+              {[5, 10, 20, 50].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1">
+              <button
+                className="px-2 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-50"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm text-gray-700 px-2">{page} / {totalPages}</span>
+              <button
+                className="px-2 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-50"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -875,6 +1072,95 @@ function UserManagement() {
                 >
                   Add User
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditUserForm && editingUser && (
+        <div
+          onClick={() => setShowEditUserForm(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl shadow-lg w-full max-w-md"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
+              <button onClick={() => setShowEditUserForm(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <select
+                    value={editingUser.role}
+                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  >
+                    <option value="Administrator">Administrator</option>
+                    <option value="Doctor">Doctor</option>
+                    <option value="Nurse">Nurse</option>
+                    <option value="Reception">Reception</option>
+                    <option value="Clinician">Clinician</option>
+                    <option value="Patient">Patient</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={editingUser.department}
+                    onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={editingUser.phone || ""}
+                  onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={editingUser.status}
+                  onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as UserRecord["status"] })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShowEditUserForm(false)} className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors">Save Changes</button>
               </div>
             </form>
           </div>
