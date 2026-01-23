@@ -1035,12 +1035,26 @@ function PatientRecordsAdmin() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [patients, search, statusFilter, riskFilter]);
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
+  const formatDate = (iso: string) => {
+    let date: Date;
+
+    // Treat date-only strings (YYYY-MM-DD) as local dates to avoid UTC offset issues
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const [yearStr, monthStr, dayStr] = iso.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(iso);
+    }
+
+    return date.toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
+  };
 
   const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
