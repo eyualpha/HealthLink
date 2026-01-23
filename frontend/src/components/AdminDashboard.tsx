@@ -15,6 +15,8 @@ import {
   Filter,
   Mail,
   Phone,
+  FileText,
+  Stethoscope,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
@@ -30,7 +32,13 @@ interface AdminDashboardProps {
   // accessToken: string; // 👈 add this so we can call the backend
 }
 
-type AdminView = "analytics" | "users" | "system" | "reports" | "audit";
+type AdminView =
+  | "analytics"
+  | "users"
+  | "patients"
+  | "system"
+  | "reports"
+  | "audit";
 
 export function AdminDashboard({
   user,
@@ -123,6 +131,11 @@ export function AdminDashboard({
       icon: BarChart3,
     },
     { id: "users" as AdminView, label: "User Management", icon: Users },
+    {
+      id: "patients" as AdminView,
+      label: "Patient Records",
+      icon: Stethoscope,
+    },
     { id: "system" as AdminView, label: "System Health", icon: Activity },
     { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
     { id: "audit" as AdminView, label: "Audit Log", icon: Activity },
@@ -139,6 +152,7 @@ export function AdminDashboard({
     >
       {activeView === "analytics" && <AnalyticsDashboard />}
       {activeView === "users" && <UserManagement />}
+      {activeView === "patients" && <PatientRecordsAdmin />}
       {activeView === "system" && <SystemHealth />}
       {activeView === "reports" && <Reports />}
       {activeView === "audit" && (
@@ -892,6 +906,410 @@ function UserManagement() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type PatientStatus = "Active" | "Follow-up" | "Discharged";
+type PatientRisk = "High" | "Medium" | "Low";
+
+interface PatientRow {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  bloodType: string;
+  phone: string;
+  email: string;
+  address: string;
+  status: PatientStatus;
+  risk: PatientRisk;
+  lastVisit: string;
+  primaryCondition: string;
+  allergies?: string;
+}
+
+function PatientRecordsAdmin() {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>(
+    "all",
+  );
+  const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const [patients] = useState<PatientRow[]>([
+    {
+      id: "P-2026-001",
+      name: "Alemayehu Girma",
+      age: 45,
+      gender: "Male",
+      bloodType: "O+",
+      phone: "+251 911 200 001",
+      email: "alemayehu.g@example.com",
+      address: "Bole, Addis Ababa",
+      status: "Active",
+      risk: "High",
+      lastVisit: "2026-01-12",
+      primaryCondition: "Type 2 Diabetes",
+      allergies: "Penicillin",
+    },
+    {
+      id: "P-2026-002",
+      name: "Sara Mohammed",
+      age: 28,
+      gender: "Female",
+      bloodType: "A+",
+      phone: "+251 911 200 002",
+      email: "sara.m@example.com",
+      address: "Kirkos, Addis Ababa",
+      status: "Active",
+      risk: "Medium",
+      lastVisit: "2026-01-08",
+      primaryCondition: "Asthma",
+      allergies: "None",
+    },
+    {
+      id: "P-2026-003",
+      name: "Daniel Bekele",
+      age: 62,
+      gender: "Male",
+      bloodType: "B+",
+      phone: "+251 911 200 003",
+      email: "daniel.b@example.com",
+      address: "Yeka, Addis Ababa",
+      status: "Follow-up",
+      risk: "High",
+      lastVisit: "2026-01-05",
+      primaryCondition: "Coronary Artery Disease",
+      allergies: "Sulfa drugs",
+    },
+    {
+      id: "P-2026-004",
+      name: "Hana Tesfaye",
+      age: 33,
+      gender: "Female",
+      bloodType: "AB+",
+      phone: "+251 911 200 004",
+      email: "hana.t@example.com",
+      address: "Lideta, Addis Ababa",
+      status: "Active",
+      risk: "Low",
+      lastVisit: "2026-01-15",
+      primaryCondition: "Routine Check-up",
+      allergies: "None",
+    },
+    {
+      id: "P-2026-005",
+      name: "Mulu Habte",
+      age: 54,
+      gender: "Female",
+      bloodType: "O-",
+      phone: "+251 911 200 005",
+      email: "mulu.h@example.com",
+      address: "Arada, Addis Ababa",
+      status: "Discharged",
+      risk: "Medium",
+      lastVisit: "2026-01-02",
+      primaryCondition: "Post-surgery follow-up",
+      allergies: "Latex",
+    },
+  ]);
+
+  const stats = useMemo(() => {
+    const total = patients.length;
+    const active = patients.filter((p) => p.status === "Active").length;
+    const followUp = patients.filter((p) => p.status === "Follow-up").length;
+    const highRisk = patients.filter((p) => p.risk === "High").length;
+    return { total, active, followUp, highRisk };
+  }, [patients]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return patients
+      .filter((p) =>
+        [p.name, p.email, p.id, p.primaryCondition]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+      )
+      .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
+      .filter((p) => (riskFilter === "all" ? true : p.risk === riskFilter))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [patients, search, statusFilter, riskFilter]);
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+  const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
+    const base = "px-3 py-1 rounded-full text-xs font-medium";
+    const map = {
+      blue: "bg-blue-100 text-blue-700",
+      amber: "bg-amber-100 text-amber-800",
+      red: "bg-red-100 text-red-700",
+      green: "bg-green-100 text-green-700",
+    } as const;
+    return <span className={`${base} ${map[tone]}`}>{label}</span>;
+  };
+
+  const handleDownloadPdf = () => {
+    if (!reportRef.current) return;
+    const printable = reportRef.current.innerHTML;
+    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
+    if (!popup) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+    popup.document.write(`
+      <html>
+        <head>
+          <title>Patient Records Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            h1 { margin: 0 0 12px 0; }
+            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; }
+            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+            .pill-high { background: #fee2e2; color: #b91c1c; }
+            .pill-medium { background: #fef3c7; color: #b45309; }
+            .pill-low { background: #e0f2fe; color: #0c4a6e; }
+            .pill-status { background: #e2e8f0; color: #0f172a; }
+          </style>
+        </head>
+        <body>
+          ${printable}
+        </body>
+      </html>
+    `);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-gray-900">Patient Records</h2>
+          <p className="text-gray-500 text-sm">
+            Track patient profiles, risk, follow-ups, and export an auditable PDF snapshot.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-5 h-5" />
+            Download PDF Report
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Total patients</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">Across all statuses</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Active</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-xs text-green-600 mt-1">Currently under care</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Follow-ups due</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.followUp}</div>
+          <div className="text-xs text-blue-600 mt-1">Need scheduling</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">High-risk</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.highRisk}</div>
+          <div className="text-xs text-red-600 mt-1">Monitor closely</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 w-full md:w-1/2">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, ID, email, or condition"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | PatientStatus)}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Follow-up">Follow-up</option>
+              <option value="Discharged">Discharged</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <ShieldCheck className="w-4 h-4 text-gray-400" />
+            <select
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value as "all" | PatientRisk)}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All risk levels</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 text-gray-700">Patient ID</th>
+                <th className="text-left py-3 px-4 text-gray-700">Name</th>
+                <th className="text-left py-3 px-4 text-gray-700">Status</th>
+                <th className="text-left py-3 px-4 text-gray-700">Risk</th>
+                <th className="text-left py-3 px-4 text-gray-700">Primary condition</th>
+                <th className="text-left py-3 px-4 text-gray-700">Last visit</th>
+                <th className="text-left py-3 px-4 text-gray-700">Contact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p) => (
+                <tr key={p.id} className="border-t border-gray-200">
+                  <td className="py-3 px-4 text-gray-900 font-medium">{p.id}</td>
+                  <td className="py-3 px-4 text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="w-4 h-4 text-blue-500" />
+                      <div>
+                        <div>{p.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {p.gender} • {p.age} yrs • {p.bloodType}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    {renderPill(p.status, p.status === "Active" ? "green" : p.status === "Follow-up" ? "blue" : "amber")}
+                  </td>
+                  <td className="py-3 px-4">
+                    {renderPill(
+                      p.risk,
+                      p.risk === "High" ? "red" : p.risk === "Medium" ? "amber" : "blue",
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-gray-700">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-400" />
+                      <span>{p.primaryCondition}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Allergies: {p.allergies || "None"}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-gray-700">{formatDate(p.lastVisit)}</td>
+                  <td className="py-3 px-4 text-gray-700">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      {p.email}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                      <Phone className="w-3 h-3" />
+                      {p.phone}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-gray-500">
+                    No patients match the current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div
+        ref={reportRef}
+        style={{ position: "absolute", left: "-9999px", top: 0 }}
+        aria-hidden
+      >
+        <h1>Patient Records Report</h1>
+        <div className="summary">
+          <div className="card">
+            <p className="muted">Total patients</p>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Active</p>
+            <strong>{stats.active}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Follow-up</p>
+            <strong>{stats.followUp}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">High-risk</p>
+            <strong>{stats.highRisk}</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Patient ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Risk</th>
+              <th>Condition</th>
+              <th>Last visit</th>
+              <th>Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>
+                  {p.name} ({p.gender}, {p.age} yrs, {p.bloodType})
+                </td>
+                <td className="pill pill-status">{p.status}</td>
+                <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>
+                  {p.risk}
+                </td>
+                <td>{p.primaryCondition}</td>
+                <td>{formatDate(p.lastVisit)}</td>
+                <td>
+                  {p.email} | {p.phone}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
