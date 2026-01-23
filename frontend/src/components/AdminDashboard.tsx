@@ -58,59 +58,22 @@ export function AdminDashboard({ user, onLogout, onShowNotifications }: AdminDas
     { id: "reports", label: "Reports", icon: FileText },
   ] satisfies { id: AdminView; label: string; icon: typeof Users }[];
 
-  const fetchAuditLogs = async (_page: number, filters = auditFilters) => {
+  const fetchAuditLogs = async (page: number, filters = auditFilters) => {
     setAuditLoading(true);
     try {
-      // Mock data until backend wiring is ready
-      const sample: AuditLogEntry[] = [
-        {
-          id: "a-1",
-          timestamp: new Date().toISOString(),
-          userName: "Admin User",
-          userRole: "admin",
-          action: "login",
-          description: "Logged in to admin dashboard",
-        },
-        {
-          id: "a-2",
-          timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-          userName: "Admin User",
-          userRole: "admin",
-          action: "create",
-          entityType: "patient",
-          entityId: "P-1001",
-          description: "Created patient record",
-        },
-        {
-          id: "a-3",
-          timestamp: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-          userName: "Doctor Tadesse",
-          userRole: "doctor",
-          action: "update",
-          entityType: "prescription",
-          entityId: "RX-77",
-          description: "Updated prescription dosage",
-        },
-      ];
-
-      const filtered = sample.filter((e) => {
-        const matchesAction = filters.action === "all" || e.action === filters.action;
-        const haystack = [
-          e.userName,
-          e.userRole,
-          e.entityType,
-          e.entityId,
-          e.description,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const matchesSearch = haystack.includes(filters.search.toLowerCase().trim());
-        return matchesAction && matchesSearch;
+      const resp = await api.getAuditLogs({
+        search: filters.search,
+        action: filters.action,
+        page,
+        pageSize: 20,
       });
-
-      setAuditEvents(filtered);
-      setAuditTotal(filtered.length);
+      const items = (resp.items || []) as AuditLogEntry[];
+      setAuditEvents(items);
+      setAuditTotal(resp.total ?? items.length);
+    } catch (err) {
+      console.error("Failed to load audit logs", err);
+      setAuditEvents([]);
+      setAuditTotal(0);
     } finally {
       setAuditLoading(false);
     }
@@ -353,6 +316,7 @@ interface NewUserFormData {
   role: string;
   phone: string;
   department: string;
+  password: string;
 }
 
 type RoleFilter =
@@ -374,6 +338,7 @@ function UserManagement() {
     role: "Doctor",
     phone: "",
     department: "General",
+    password: "",
   });
 
   const [users, setUsers] = useState<UserRecord[]>([
@@ -498,25 +463,37 @@ function UserManagement() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}`;
-    const now = new Date().toISOString();
-    const record: UserRecord = {
-      id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      status: "Active",
-      department: newUser.department || "General",
-      phone: newUser.phone,
-      lastActive: now,
-      createdAt: now,
-    };
-    setUsers((prev) => [record, ...prev]);
-    setNewUser({ name: "", email: "", role: "Doctor", phone: "", department: "General" });
-    setShowAddUserForm(false);
-    alert("User added successfully!");
+    try {
+      // Backend expects lowercase roles and requires password
+      const payload = {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role.toLowerCase(),
+        password: newUser.password,
+      };
+      const created = await api.createUser(payload);
+      const now = new Date().toISOString();
+      const record: UserRecord = {
+        id: created.id || created._id || `u-${Date.now()}`,
+        name: created.name || newUser.name,
+        email: created.email || newUser.email,
+        role: newUser.role,
+        status: "Active",
+        department: newUser.department || "General",
+        phone: newUser.phone,
+        lastActive: now,
+        createdAt: now,
+      };
+      setUsers((prev) => [record, ...prev]);
+      setNewUser({ name: "", email: "", role: "Doctor", phone: "", department: "General", password: "" });
+      setShowAddUserForm(false);
+      alert("User created successfully");
+    } catch (err) {
+      alert("Could not create user. Check permissions or inputs.");
+      console.error(err);
+    }
   };
 
   const handleDownloadPdf = () => {
@@ -852,6 +829,22 @@ function UserManagement() {
                     placeholder="Cardiology, Ops, etc."
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Temporary Password *
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={newUser.password}
+                  onChange={handleInputChange}
+                  required
+                  minLength={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="At least 6 characters"
+                />
               </div>
 
               <div>

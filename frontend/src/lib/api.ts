@@ -117,6 +117,37 @@ export async function deletePatient(id: string) {
   return res.json();
 }
 
+// Users (admin)
+export async function createUser(payload: { name: string; email: string; role: string; password: string }) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/users`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+// Audit Logs
+export interface AuditQuery {
+  search?: string;
+  action?: string; // 'login' | 'logout' | 'create' | 'update' | 'delete' | 'permission' | 'other' | 'all'
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getAuditLogs(query: AuditQuery = {}) {
+  const url = new URL(`${BASE}/audit-logs`);
+  if (query.search) url.searchParams.set('search', query.search);
+  if (query.action) url.searchParams.set('action', query.action);
+  if (query.page) url.searchParams.set('page', String(query.page));
+  if (query.pageSize) url.searchParams.set('pageSize', String(query.pageSize));
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export default {
   login,
   logout,
@@ -127,4 +158,6 @@ export default {
   createPatient,
   updatePatient,
   deletePatient,
+  createUser,
+  getAuditLogs,
 };
