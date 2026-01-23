@@ -1,24 +1,119 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
-import { BarChart3, Users, Calendar, Activity, TrendingUp, Clock, X } from "lucide-react";
+import {
+  BarChart3,
+  Users,
+  Calendar,
+  Activity,
+  TrendingUp,
+  Clock,
+  X,
+} from "lucide-react";
+import { AdminAuditLogPage } from "./audit";
+import type { AuditLogEntry, AuditEventType } from "./audit";
+
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
-  onShowNotifications: () => void; // ✅ NEW
+  onShowNotifications: () => void;
+  
+  // accessToken: string; // 👈 add this so we can call the backend
 }
 
-type AdminView = "analytics" | "users" | "system" | "reports";
+type AdminView = "analytics" | "users" | "system" | "reports" | "audit";
 
-export function AdminDashboard({ user, onLogout, onShowNotifications }: AdminDashboardProps) {
+export function AdminDashboard({
+  user,
+  onLogout,
+  onShowNotifications,
+  accessToken,
+}: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>("analytics");
 
+  // --- audit log state (for the Audit tab) ---
+  const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize] = useState(10);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditFilters, setAuditFilters] = useState<{
+    search: string;
+    action: AuditEventType | "all";
+  }>({ search: "", action: "all" });
+
+  async function fetchAuditLogs(
+    p: number = auditPage,
+    f: { search: string; action: AuditEventType | "all" } = auditFilters,
+  ) {
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(p),
+        pageSize: String(auditPageSize),
+        search: f.search,
+        action: f.action,
+      });
+
+      const res = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:5000"
+        }/audit-logs?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!res.ok) {
+        console.error("Failed to fetch audit logs:", await res.text());
+        return;
+      }
+
+      const data = await res.json();
+
+      setAuditEvents(
+        (data.items || []).map((x: any): AuditLogEntry => ({
+          id: x.id,
+          timestamp: x.timestamp,
+          userName: x.userName,
+          userRole: x.userRole,
+          action: x.action,
+          entityType: x.entityType,
+          entityId: x.entityId,
+          description: x.description,
+          ipAddress: x.ipAddress,
+        })),
+      );
+      setAuditTotal(data.total ?? 0);
+      setAuditPage(data.page ?? p);
+    } catch (err) {
+      console.error("Error fetching audit logs:", err);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  // load audit logs when the Audit tab is opened the first time
+  useEffect(() => {
+    if (activeView === "audit") {
+      fetchAuditLogs(1, auditFilters);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
+
   const menuItems = [
-    { id: "analytics" as AdminView, label: "Analytics Dashboard", icon: BarChart3 },
+    {
+      id: "analytics" as AdminView,
+      label: "Analytics Dashboard",
+      icon: BarChart3,
+    },
     { id: "users" as AdminView, label: "User Management", icon: Users },
     { id: "system" as AdminView, label: "System Health", icon: Activity },
     { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
+    { id: "audit" as AdminView, label: "Audit Log", icon: Activity },
   ];
 
   return (
@@ -28,15 +123,34 @@ export function AdminDashboard({ user, onLogout, onShowNotifications }: AdminDas
       menuItems={menuItems}
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as AdminView)}
-      onShowNotifications={onShowNotifications} // ✅ NEW (bell works now)
+      onShowNotifications={onShowNotifications}
     >
       {activeView === "analytics" && <AnalyticsDashboard />}
       {activeView === "users" && <UserManagement />}
       {activeView === "system" && <SystemHealth />}
       {activeView === "reports" && <Reports />}
+      {activeView === "audit" && (
+        <AdminAuditLogPage
+          events={auditEvents}
+          loading={auditLoading}
+          totalCount={auditTotal}
+          page={auditPage}
+          pageSize={auditPageSize}
+          onPageChange={(p) => fetchAuditLogs(p, auditFilters)}
+          onRefresh={() => fetchAuditLogs(1, auditFilters)}
+          onFilterChange={(f) => {
+            setAuditFilters(f);
+            fetchAuditLogs(1, f);
+          }}
+          initialSearch={auditFilters.search}
+          initialActionFilter={auditFilters.action}
+        />
+      )}
     </DashboardLayout>
   );
 }
+
+// ---------- existing dashboards below (unchanged apart from imports) ----------
 
 function AnalyticsDashboard() {
   return (
@@ -109,7 +223,10 @@ function AnalyticsDashboard() {
           <h3 className="text-gray-900 mb-4">Daily Appointments</h3>
           <div className="h-64 flex items-end justify-between gap-2">
             {[45, 62, 58, 71, 68, 85, 92].map((value, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+              <div
+                key={idx}
+                className="flex-1 flex flex-col items-center gap-2"
+              >
                 <div
                   className="w-full bg-blue-600 rounded-t-lg transition-all hover:bg-blue-700"
                   style={{ height: `${(value / 100) * 100}%` }}
@@ -126,9 +243,21 @@ function AnalyticsDashboard() {
           <h3 className="text-gray-900 mb-4">System Usage</h3>
           <div className="space-y-4">
             {[
-              { label: "Patient Records Access", value: 87, color: "bg-blue-600" },
-              { label: "Appointment Scheduling", value: 72, color: "bg-green-600" },
-              { label: "Prescription Management", value: 64, color: "bg-purple-600" },
+              {
+                label: "Patient Records Access",
+                value: 87,
+                color: "bg-blue-600",
+              },
+              {
+                label: "Appointment Scheduling",
+                value: 72,
+                color: "bg-green-600",
+              },
+              {
+                label: "Prescription Management",
+                value: 64,
+                color: "bg-purple-600",
+              },
               { label: "Lab Results Entry", value: 58, color: "bg-orange-600" },
             ].map((item, idx) => (
               <div key={idx}>
@@ -178,12 +307,17 @@ function AnalyticsDashboard() {
               time: "1 hour ago",
             },
           ].map((activity, idx) => (
-            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div
+              key={idx}
+              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+            >
               <div>
                 <div className="text-gray-900">
                   {activity.user} {activity.action.toLowerCase()}
                 </div>
-                <div className="text-gray-500 text-sm">{activity.patient}</div>
+                <div className="text-gray-500 text-sm">
+                  {activity.patient}
+                </div>
               </div>
               <div className="text-gray-500 text-sm">{activity.time}</div>
             </div>
@@ -198,59 +332,77 @@ interface NewUserFormData {
   name: string;
   email: string;
   role: string;
-  // department?: string;
   phone?: string;
 }
 
 function UserManagement() {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [newUser, setNewUser] = useState<NewUserFormData>({
-    name: '',
-    email: '',
-    role: 'Doctor',
-    // department: '',
-    phone: ''
+    name: "",
+    email: "",
+    role: "Doctor",
+    phone: "",
   });
 
   const users = [
-    { id: 1, name: "Dr. Abebe Kebede", role: "Doctor", email: "abebe.k@healthlink.et", status: "Active" },
-    { id: 2, name: "Nurse Tigist Alemu", role: "Nurse", email: "tigist.a@healthlink.et", status: "Active" },
-    { id: 3, name: "Dr. Solomon Tesfaye", role: "Doctor", email: "solomon.t@healthlink.et", status: "Active" },
-    { id: 4, name: "Admin User", role: "Administrator", email: "admin@healthlink.et", status: "Active" },
+    {
+      id: 1,
+      name: "Dr. Abebe Kebede",
+      role: "Doctor",
+      email: "abebe.k@healthlink.et",
+      status: "Active",
+    },
+    {
+      id: 2,
+      name: "Nurse Tigist Alemu",
+      role: "Nurse",
+      email: "tigist.a@healthlink.et",
+      status: "Active",
+    },
+    {
+      id: 3,
+      name: "Dr. Solomon Tesfaye",
+      role: "Doctor",
+      email: "solomon.t@healthlink.et",
+      status: "Active",
+    },
+    {
+      id: 4,
+      name: "Admin User",
+      role: "Administrator",
+      email: "admin@healthlink.et",
+      status: "Active",
+    },
   ];
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value } = e.target;
-    setNewUser(prev => ({
+    setNewUser((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend API
-    console.log('New user data:', newUser);
-    
-    // Reset form and close modal
+    console.log("New user data:", newUser);
     setNewUser({
-      name: '',
-      email: '',
-      role: 'Doctor',
-      // department: '',
-      phone: ''
+      name: "",
+      email: "",
+      role: "Doctor",
+      phone: "",
     });
     setShowAddUserForm(false);
-    
-    // Show success message or update user list
-    alert('User added successfully!');
+    alert("User added successfully!");
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">User Management</h2>
-        <button 
+        <button
           onClick={() => setShowAddUserForm(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -260,107 +412,110 @@ function UserManagement() {
       </div>
 
       {/* Add User Form Modal */}
- {showAddUserForm && (
-  <div 
-    onClick={() => setShowAddUserForm(false)}
-    className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
-  >
-    <div 
-      onClick={(e) => e.stopPropagation()}
-      className="bg-white rounded-xl shadow-lg w-full max-w-md"
-    >
-      <div className="flex items-center justify-between p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Add New User</h3>
-        <button
+      {showAddUserForm && (
+        <div
           onClick={() => setShowAddUserForm(false)}
-          className="text-gray-400 hover:text-gray-500"
+          className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
         >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-      
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Full Name *
-          </label>
-          <input
-            type="text"
-            name="name"
-            value={newUser.name}
-            onChange={handleInputChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-            placeholder="Enter full name"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address *
-          </label>
-          <input
-            type="email"
-            name="email"
-            value={newUser.email}
-            onChange={handleInputChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-            placeholder="user@healthlink.et"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Role *
-          </label>
-          <select
-            name="role"
-            value={newUser.role}
-            onChange={handleInputChange}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl shadow-lg w-full max-w-md"
           >
-            <option value="Doctor">Doctor</option>
-            <option value="Nurse">Nurse</option>
-            <option value="Administrator">Administrator</option>
-            <option value="Receptor">Receptor</option>
-          </select>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Add New User
+              </h3>
+              <button
+                onClick={() => setShowAddUserForm(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={newUser.name}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Enter full name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={newUser.email}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="user@healthlink.et"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role *
+                </label>
+                <select
+                  name="role"
+                  value={newUser.role}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                >
+                  <option value="Doctor">Doctor</option>
+                  <option value="Nurse">Nurse</option>
+                  <option value="Administrator">Administrator</option>
+                  <option value="Receptor">Receptor</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={newUser.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="+251 9XX XXX XXX"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserForm(false)}
+                  className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                >
+                  Add User
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number
-          </label>
-          <input
-            type="tel"
-            name="phone"
-            value={newUser.phone}
-            onChange={handleInputChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-            placeholder="+251 9XX XXX XXX"
-          />
-        </div>
-        
-        <div className="flex items-center justify-end gap-3 pt-4">
-          <button
-            type="button"
-            onClick={() => setShowAddUserForm(false)}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
-          >
-            Add User
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-)}
+      )}
+
       {/* User Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full">
@@ -374,23 +529,27 @@ function UserManagement() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-900">{user.name}</td>
+            {users.map((userRow) => (
+              <tr key={userRow.id} className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
                 <td className="py-4 px-6">
                   <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {user.role}
+                    {userRow.role}
                   </span>
                 </td>
-                <td className="py-4 px-6 text-gray-600">{user.email}</td>
+                <td className="py-4 px-6 text-gray-600">{userRow.email}</td>
                 <td className="py-4 px-6">
                   <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                    {user.status}
+                    {userRow.status}
                   </span>
                 </td>
                 <td className="py-4 px-6">
-                  <button className="text-blue-600 hover:text-blue-700 mr-4">Edit</button>
-                  <button className="text-red-600 hover:text-red-700">Deactivate</button>
+                  <button className="text-blue-600 hover:text-blue-700 mr-4">
+                    Edit
+                  </button>
+                  <button className="text-red-600 hover:text-red-700">
+                    Deactivate
+                  </button>
                 </td>
               </tr>
             ))}
@@ -430,19 +589,25 @@ function SystemHealth() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-gray-900 mb-4">Audit Logs</h3>
+        <h3 className="text-gray-900 mb-4">Audit Logs (Summary)</h3>
         <div className="space-y-2 max-h-96 overflow-y-auto">
-          {Array.from({ length: 10 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <div key={i} className="p-3 bg-gray-50 rounded-lg text-sm">
               <div className="flex items-center justify-between">
                 <div className="text-gray-700">
-                  User access: Dr. Abebe Kebede accessed patient record P00{i + 1}
+                  User access: Dr. Abebe Kebede accessed patient record P00
+                  {i + 1}
                 </div>
-                <div className="text-gray-500">2024-01-15 {10 + i}:{15 + i}:00</div>
+                <div className="text-gray-500">
+                  2024-01-15 {10 + i}:{15 + i}:00
+                </div>
               </div>
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-gray-500">
+          View the full audit log in the Audit Log tab.
+        </p>
       </div>
     </div>
   );
@@ -455,19 +620,40 @@ function Reports() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          { title: "Monthly Patient Report", date: "January 2024", type: "Patient Analytics" },
-          { title: "Appointment Statistics", date: "Q4 2023", type: "Operations" },
-          { title: "Prescription Summary", date: "December 2023", type: "Clinical" },
-          { title: "System Usage Report", date: "January 2024", type: "Technical" },
+          {
+            title: "Monthly Patient Report",
+            date: "January 2024",
+            type: "Patient Analytics",
+          },
+          {
+            title: "Appointment Statistics",
+            date: "Q4 2023",
+            type: "Operations",
+          },
+          {
+            title: "Prescription Summary",
+            date: "December 2023",
+            type: "Clinical",
+          },
+          {
+            title: "System Usage Report",
+            date: "January 2024",
+            type: "Technical",
+          },
         ].map((report, idx) => (
-          <div key={idx} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div
+            key={idx}
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200"
+          >
             <h3 className="text-gray-900 mb-2">{report.title}</h3>
             <div className="text-gray-600 text-sm mb-4">{report.date}</div>
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
                 {report.type}
               </span>
-              <button className="text-blue-600 hover:text-blue-700">Download PDF</button>
+              <button className="text-blue-600 hover:text-blue-700">
+                Download PDF
+              </button>
             </div>
           </div>
         ))}

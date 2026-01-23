@@ -80,6 +80,7 @@ function App() {
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
+         
         />
       );
 
