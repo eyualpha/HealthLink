@@ -94,6 +94,36 @@ export async function updatePatient(id: string, payload: any) {
   return res.json();
 }
 
+export async function getAuditLogs(params: { page?: number; pageSize?: number; search?: string; action?: string }) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/audit-logs`);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.pageSize) url.searchParams.set('pageSize', String(params.pageSize));
+  if (params.search) url.searchParams.set('search', params.search);
+  if (params.action && params.action !== 'all') url.searchParams.set('action', params.action);
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function getUsers() {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${BASE}/users`, { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function createUser(payload: { name: string; email: string; password: string; role: string }) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/users`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export default {
   login,
   logout,
@@ -103,4 +133,7 @@ export default {
   getPatients,
   createPatient,
   updatePatient,
+  getAuditLogs,
+  getUsers,
+  createUser,
 };

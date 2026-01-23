@@ -12,14 +12,13 @@ import {
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
-
+import { createUser, getUsers, getAuditLogs } from "../lib/api";
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
   onShowNotifications: () => void;
-  
-  // accessToken: string; // 👈 add this so we can call the backend
+  accessToken: string; // 👈 add this so we can call the backend
 }
 
 type AdminView = "analytics" | "users" | "system" | "reports" | "audit";
@@ -49,43 +48,27 @@ export function AdminDashboard({
   ) {
     setAuditLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(auditPageSize),
+      const data = await getAuditLogs({
+        page: p,
+        pageSize: auditPageSize,
         search: f.search,
-        action: f.action,
+        action: f.action === "all" ? undefined : f.action,
       });
 
-      const res = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5000"
-        }/audit-logs?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-      );
-
-      if (!res.ok) {
-        console.error("Failed to fetch audit logs:", await res.text());
-        return;
-      }
-
-      const data = await res.json();
-
       setAuditEvents(
-        (data.items || []).map((x: any): AuditLogEntry => ({
-          id: x.id,
-          timestamp: x.timestamp,
-          userName: x.userName,
-          userRole: x.userRole,
-          action: x.action,
-          entityType: x.entityType,
-          entityId: x.entityId,
-          description: x.description,
-          ipAddress: x.ipAddress,
-        })),
+        (data.items || []).map(
+          (x: any): AuditLogEntry => ({
+            id: x.id,
+            timestamp: x.timestamp,
+            userName: x.userName,
+            userRole: x.userRole,
+            action: x.action,
+            entityType: x.entityType,
+            entityId: x.entityId,
+            description: x.description,
+            ipAddress: x.ipAddress,
+          }),
+        ),
       );
       setAuditTotal(data.total ?? 0);
       setAuditPage(data.page ?? p);
@@ -315,9 +298,7 @@ function AnalyticsDashboard() {
                 <div className="text-gray-900">
                   {activity.user} {activity.action.toLowerCase()}
                 </div>
-                <div className="text-gray-500 text-sm">
-                  {activity.patient}
-                </div>
+                <div className="text-gray-500 text-sm">{activity.patient}</div>
               </div>
               <div className="text-gray-500 text-sm">{activity.time}</div>
             </div>
@@ -333,6 +314,15 @@ interface NewUserFormData {
   email: string;
   role: string;
   phone?: string;
+  password: string;
+}
+
+interface UserTableRow {
+  id: string | number;
+  name: string;
+  role: string;
+  email: string;
+  status: string;
 }
 
 function UserManagement() {
@@ -340,39 +330,23 @@ function UserManagement() {
   const [newUser, setNewUser] = useState<NewUserFormData>({
     name: "",
     email: "",
-    role: "Doctor",
+    role: "doctor",
     phone: "",
+    password: "",
   });
+  const [users, setUsers] = useState<UserTableRow[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const users = [
-    {
-      id: 1,
-      name: "Dr. Abebe Kebede",
-      role: "Doctor",
-      email: "abebe.k@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Nurse Tigist Alemu",
-      role: "Nurse",
-      email: "tigist.a@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Dr. Solomon Tesfaye",
-      role: "Doctor",
-      email: "solomon.t@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 4,
-      name: "Admin User",
-      role: "Administrator",
-      email: "admin@healthlink.et",
-      status: "Active",
-    },
+  const roleOptions: { label: string; value: string }[] = [
+    { label: "Administrator", value: "admin" },
+    { label: "Doctor", value: "doctor" },
+    { label: "Nurse", value: "nurse" },
+    { label: "Reception", value: "reception" },
+    { label: "Clinician", value: "clinician" },
+    { label: "Patient", value: "patient" },
   ];
 
   const handleInputChange = (
@@ -387,16 +361,77 @@ function UserManagement() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("New user data:", newUser);
-    setNewUser({
-      name: "",
-      email: "",
-      role: "Doctor",
-      phone: "",
-    });
-    setShowAddUserForm(false);
-    alert("User added successfully!");
+    setSubmitting(true);
+    setFormError(null);
+    setFormSuccess(null);
+
+    createUser({
+      name: newUser.name.trim(),
+      email: newUser.email.trim(),
+      password: newUser.password,
+      role: newUser.role,
+    })
+      .then((created) => {
+        setFormSuccess("User created successfully.");
+        setUsers((prev) => [
+          ...prev,
+          {
+            id: created.id || created._id || created.email,
+            name: created.name,
+            email: created.email,
+            role: created.role,
+            status: "Active",
+          },
+        ]);
+        setNewUser({
+          name: "",
+          email: "",
+          role: "doctor",
+          phone: "",
+          password: "",
+        });
+        setShowAddUserForm(false);
+      })
+      .catch(async (err: any) => {
+        try {
+          const text = await err.text();
+          setFormError(text || "Failed to create user.");
+        } catch {
+          setFormError("Failed to create user.");
+        }
+      })
+      .finally(() => setSubmitting(false));
   };
+
+  useEffect(() => {
+    setLoadingUsers(true);
+    getUsers()
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+        setUsers(
+          list.map((u: any) => ({
+            id: u.id || u._id || u.email,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            status: "Active",
+          })),
+        );
+      })
+      .catch(async (err: any) => {
+        try {
+          const text = await err.text();
+          setFormError(text || "Failed to load users.");
+        } catch {
+          setFormError("Failed to load users.");
+        }
+      })
+      .finally(() => setLoadingUsers(false));
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -475,11 +510,28 @@ function UserManagement() {
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                 >
-                  <option value="Doctor">Doctor</option>
-                  <option value="Nurse">Nurse</option>
-                  <option value="Administrator">Administrator</option>
-                  <option value="Receptor">Receptor</option>
+                  {roleOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Temporary Password *
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={newUser.password}
+                  onChange={handleInputChange}
+                  required
+                  minLength={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Set an initial password"
+                />
               </div>
 
               <div>
@@ -506,9 +558,10 @@ function UserManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
                 >
-                  Add User
+                  {submitting ? "Adding..." : "Add User"}
                 </button>
               </div>
             </form>
@@ -518,6 +571,16 @@ function UserManagement() {
 
       {/* User Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {formError && (
+          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
+            {formSuccess}
+          </div>
+        )}
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -529,12 +592,27 @@ function UserManagement() {
             </tr>
           </thead>
           <tbody>
+            {loadingUsers && (
+              <tr className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-600" colSpan={5}>
+                  Loading users...
+                </td>
+              </tr>
+            )}
+            {!loadingUsers && users.length === 0 && (
+              <tr className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-600" colSpan={5}>
+                  No users created yet. Use "Add New User" to create one.
+                </td>
+              </tr>
+            )}
             {users.map((userRow) => (
               <tr key={userRow.id} className="border-t border-gray-200">
                 <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
                 <td className="py-4 px-6">
                   <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {userRow.role}
+                    {roleOptions.find((r) => r.value === userRow.role)?.label ||
+                      userRow.role}
                   </span>
                 </td>
                 <td className="py-4 px-6 text-gray-600">{userRow.email}</td>
