@@ -10,7 +10,6 @@ import { PatientDashboard } from "./components/PatientDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import Notifications from "./components/Notifications";
 import { ReceptionDashboard } from "./components/ReceptorDashboard";
-import { Landing } from "./components/Landing";
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -18,7 +17,6 @@ function App() {
     return session?.user ?? null;
   });
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
 
   const handleLogin = (user: User) => setCurrentUser(user);
 
@@ -26,12 +24,7 @@ function App() {
     api.logout();
     setCurrentUser(null);
     setShowNotifications(false);
-    setShowLanding(true);
   };
-
-  if (!currentUser && showLanding) {
-    return <Landing onLoginClick={() => setShowLanding(false)} />;
-  }
 
   // If not logged in, show login screen
   if (!currentUser) return <Login onLogin={handleLogin} />;
