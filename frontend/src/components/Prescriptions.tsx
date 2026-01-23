@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, AlertTriangle, CheckCircle, Pill, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, AlertTriangle, CheckCircle, Pill, Search, X } from 'lucide-react';
 
 interface Prescription {
   id: string;
@@ -53,11 +53,29 @@ export function Prescriptions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewPrescription, setShowNewPrescription] = useState(false);
 
-  const filteredPrescriptions = mockPrescriptions.filter((rx) =>
-    rx.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rx.medication.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    rx.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ✅ NEW: details modal state
+  const [showDetails, setShowDetails] = useState(false);
+  const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
+
+  const filteredPrescriptions = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return mockPrescriptions.filter(
+      (rx) =>
+        rx.patientName.toLowerCase().includes(q) ||
+        rx.medication.toLowerCase().includes(q) ||
+        rx.id.toLowerCase().includes(q)
+    );
+  }, [searchTerm]);
+
+  const openDetails = (rx: Prescription) => {
+    setSelectedRx(rx);
+    setShowDetails(true);
+  };
+
+  const closeDetails = () => {
+    setShowDetails(false);
+    setSelectedRx(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -125,6 +143,7 @@ export function Prescriptions() {
                     </div>
                   </div>
                 </div>
+
                 <div className="flex flex-col items-end gap-2">
                   <span
                     className={`px-3 py-1 rounded-full text-sm ${
@@ -137,23 +156,137 @@ export function Prescriptions() {
                   >
                     {rx.status}
                   </span>
-                  <button className="text-blue-600 hover:text-blue-700 text-sm">
+
+                  {/* ✅ UPDATED: View Details now works */}
+                  <button
+                    type="button"
+                    onClick={() => openDetails(rx)}
+                    className="text-blue-600 hover:text-blue-700 text-sm"
+                  >
                     View Details
                   </button>
                 </div>
               </div>
             </div>
           ))}
+
+          {filteredPrescriptions.length === 0 && (
+            <div className="text-gray-500 text-sm">No prescriptions match your search.</div>
+          )}
         </div>
       </div>
 
       {showNewPrescription && (
         <NewPrescriptionModal onClose={() => setShowNewPrescription(false)} />
       )}
+
+      {/* ✅ NEW: Details Modal */}
+      {showDetails && (
+        <PrescriptionDetailsModal rx={selectedRx} onClose={closeDetails} />
+      )}
     </div>
   );
 }
 
+/* =======================
+   Details Modal Component
+   ======================= */
+function PrescriptionDetailsModal({
+  rx,
+  onClose,
+}: {
+  rx: Prescription | null;
+  onClose: () => void;
+}) {
+  if (!rx) return null;
+
+  const statusPill =
+    rx.status === 'Active'
+      ? 'bg-green-100 text-green-700'
+      : rx.status === 'Completed'
+      ? 'bg-gray-100 text-gray-700'
+      : 'bg-red-100 text-red-700';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* overlay */}
+      <button
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+        aria-label="Close"
+      />
+
+      {/* modal */}
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden">
+        <div className="bg-blue-600 text-white p-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-white">Prescription Details</h3>
+            <div className="text-blue-100 text-sm">
+              {rx.medication} • {rx.id}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-blue-700 rounded-lg transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="text-gray-900">
+              Patient: <span className="font-medium">{rx.patientName}</span> ({rx.patientId})
+            </div>
+            <span className={`px-3 py-1 rounded-full text-sm ${statusPill}`}>{rx.status}</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Info label="Medication" value={rx.medication} />
+            <Info label="Prescription ID" value={rx.id} />
+            <Info label="Dosage" value={rx.dosage} />
+            <Info label="Frequency" value={rx.frequency} />
+            <Info label="Duration" value={rx.duration} />
+            <Info label="Date Issued" value={rx.date} />
+          </div>
+
+          {/* You can connect these later to backend */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="text-gray-900 text-sm mb-1">Instructions</div>
+            <div className="text-gray-600 text-sm">
+              No extra instructions provided yet.
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-4">
+      <div className="text-gray-500 text-sm">{label}</div>
+      <div className="text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+/* =======================
+   New Prescription Modal
+   ======================= */
 function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
   const [selectedPatient, setSelectedPatient] = useState('');
   const [medication, setMedication] = useState('');
