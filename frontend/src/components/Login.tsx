@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Activity } from 'lucide-react';
-import type { User, UserRole } from '../types';
-import api from '../lib/api';
+import { useState } from "react";
+import { Activity } from "lucide-react";
+import type { User, UserRole } from "../types";
+import api from "../lib/api";
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -9,35 +9,35 @@ interface LoginProps {
 
 const mockUsers: Partial<Record<UserRole, User>> = {
   doctor: {
-    id: 'doc1',
-    name: 'Dr. Abebe Kebede',
-    email: 'abebe.kebede@healthlink.et',
-    role: 'doctor',
+    id: "doc1",
+    name: "Dr. Abebe Kebede",
+    email: "abebe.kebede@healthlink.et",
+    role: "doctor",
   },
   nurse: {
-    id: 'nurse1',
-    name: 'Nurse Tigist Alemu',
-    email: 'tigist.alemu@healthlink.et',
-    role: 'nurse',
+    id: "nurse1",
+    name: "Nurse Tigist Alemu",
+    email: "tigist.alemu@healthlink.et",
+    role: "nurse",
   },
   patient: {
-    id: 'pat1',
-    name: 'Mekdes Hailu',
-    email: 'mekdes.hailu@example.com',
-    role: 'patient',
+    id: "pat1",
+    name: "Mekdes Hailu",
+    email: "mekdes.hailu@example.com",
+    role: "patient",
   },
   admin: {
-    id: 'admin1',
-    name: 'Admin Solomon Tesfaye',
-    email: 'solomon.tesfaye@healthlink.et',
-    role: 'admin',
+    id: "admin1",
+    name: "Admin Solomon Tesfaye",
+    email: "solomon.tesfaye@healthlink.et",
+    role: "admin",
   },
 };
 
 export function Login({ onLogin }: LoginProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('doctor');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<UserRole>("doctor");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,20 +49,32 @@ export function Login({ onLogin }: LoginProps) {
       const data = await api.login(email, password);
       onLogin(data.user);
     } catch (err) {
-      setError('Login failed — please check credentials.');
+      setError("Login failed — please check credentials.");
       // Do not auto-login with a demo user. Keep the form for retry.
     } finally {
       setLoading(false);
     }
   };
 
-  const seededCreds: Array<{ role: UserRole; email: string; password: string }> = [
-    { role: 'admin', email: 'admin@localhost', password: 'Admin123!' },
-    { role: 'doctor', email: 'doctor@localhost', password: 'Doctor123!' },
-    { role: 'nurse', email: 'nurse@localhost', password: 'Nurse123!' },
-    { role: 'reception', email: 'reception@localhost', password: 'Reception123!' },
-    { role: 'patient', email: 'patient@localhost', password: 'Patient123!' },
-    { role: 'clinician', email: 'clinician@localhost', password: 'Clinician123!' },
+  const seededCreds: Array<{
+    role: UserRole;
+    email: string;
+    password: string;
+  }> = [
+    { role: "admin", email: "admin@localhost", password: "Admin123!" },
+    { role: "doctor", email: "doctor@localhost", password: "Doctor123!" },
+    { role: "nurse", email: "nurse@localhost", password: "Nurse123!" },
+    {
+      role: "reception",
+      email: "reception@localhost",
+      password: "Reception123!",
+    },
+    { role: "patient", email: "patient@localhost", password: "Patient123!" },
+    {
+      role: "clinician",
+      email: "clinician@localhost",
+      password: "Clinician123!",
+    },
   ];
 
   const fillCred = (c: { role: UserRole; email: string; password: string }) => {
@@ -80,7 +92,9 @@ export function Login({ onLogin }: LoginProps) {
               <Activity className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-blue-900 text-2xl font-semibold mb-2">HealthLink</h1>
+          <h1 className="text-blue-900 text-2xl font-semibold mb-2">
+            HealthLink
+          </h1>
           <p className="text-gray-600">Ethiopia's National EHR System</p>
         </div>
 
@@ -123,7 +137,7 @@ export function Login({ onLogin }: LoginProps) {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:bg-blue-300 flex items-center justify-center"
           >
             Sign In
           </button>
@@ -131,11 +145,14 @@ export function Login({ onLogin }: LoginProps) {
 
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <p className="text-blue-900 text-sm">
-            <strong>Demo Mode:</strong> Select a role and click Sign In to explore the system
+            <strong>Demo Mode:</strong> Select a role and click Sign In to
+            explore the system
           </p>
         </div>
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <div className="text-gray-700 text-sm mb-2">Seeded demo credentials (click to autofill):</div>
+          <div className="text-gray-700 text-sm mb-2">
+            Seeded demo credentials (click to autofill):
+          </div>
           <div className="grid grid-cols-1 gap-2">
             {seededCreds.map((c) => (
               <button
@@ -144,7 +161,9 @@ export function Login({ onLogin }: LoginProps) {
                 className="text-left p-2 rounded-lg border border-gray-200 hover:bg-gray-100"
               >
                 <div className="font-medium">{c.email}</div>
-                <div className="text-xs text-gray-500">{c.password} — {c.role}</div>
+                <div className="text-xs text-gray-500">
+                  {c.password} — {c.role}
+                </div>
               </button>
             ))}
           </div>

@@ -1,8 +1,6 @@
-// Prefer explicit Vite env `VITE_API_URL`. Fall back to other envs, but avoid
-// using `BASE_URL` alone because Vite exposes it as '/' and that produces
-// protocol-relative URLs when concatenated (e.g. `//auth/login`).
+
 let _base = import.meta.env.VITE_API_URL || import.meta.env.VITE_BASE_URL || import.meta.env.BASE_URL || '';
-// Treat bare '/' or empty as unspecified and fallback to localhost
+
 if (!_base || _base === '/') _base = 'http://localhost:5000';
 // remove trailing slash
 const BASE = _base.replace(/\/$/, '');
@@ -55,6 +53,18 @@ export async function getMyAppointments() {
   return res.json();
 }
 
+export async function getAppointments(params: { patientId?: string; doctorId?: string; page?: number; limit?: number } = {}) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/appointments`);
+  if (params.patientId) url.searchParams.set('patientId', params.patientId);
+  if (params.doctorId) url.searchParams.set('doctorId', params.doctorId);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.limit) url.searchParams.set('limit', String(params.limit));
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export async function createAppointment(payload: any) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/appointments`, {
@@ -96,6 +106,48 @@ export async function updatePatient(id: string, payload: any) {
   return res.json();
 }
 
+export async function getAuditLogs(params: { page?: number; pageSize?: number; search?: string; action?: string }) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/audit-logs`);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.pageSize) url.searchParams.set('pageSize', String(params.pageSize));
+  if (params.search) url.searchParams.set('search', params.search);
+  if (params.action && params.action !== 'all') url.searchParams.set('action', params.action);
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function getUsers() {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${BASE}/users`, { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function getPrescriptions(params: { patientId?: string; doctorId?: string; page?: number; limit?: number } = {}) {
+  const headers = getAuthHeaders();
+  const url = new URL(`${BASE}/prescriptions`);
+  if (params.patientId) url.searchParams.set('patientId', params.patientId);
+  if (params.doctorId) url.searchParams.set('doctorId', params.doctorId);
+  if (params.page) url.searchParams.set('page', String(params.page));
+  if (params.limit) url.searchParams.set('limit', String(params.limit));
+  const res = await fetch(url.toString(), { headers });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function createUser(payload: { name: string; email: string; password: string; role: string }) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/users`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export default {
   login,
   logout,
@@ -105,4 +157,8 @@ export default {
   getPatients,
   createPatient,
   updatePatient,
+  getAuditLogs,
+  getUsers,
+  getPrescriptions,
+  createUser,
 };

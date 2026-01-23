@@ -22,6 +22,7 @@ import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
 import api from "../lib/api";
 
+import { createUser, getUsers, getAuditLogs } from "../lib/api";
 
 interface AdminDashboardProps {
   user: User;
@@ -65,45 +66,27 @@ export function AdminDashboard({
   ) {
     setAuditLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(auditPageSize),
+      const data = await getAuditLogs({
+        page: p,
+        pageSize: auditPageSize,
         search: f.search,
-        action: f.action,
+        action: f.action === "all" ? undefined : f.action,
       });
 
-      const res = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5000"
-        }/audit-logs?${params.toString()}`,
-        {
-          headers: authToken
-            ? {
-                Authorization: `Bearer ${authToken}`,
-              }
-            : {},
-        },
-      );
-
-      if (!res.ok) {
-        console.error("Failed to fetch audit logs:", await res.text());
-        return;
-      }
-
-      const data = await res.json();
-
       setAuditEvents(
-        (data.items || []).map((x: any): AuditLogEntry => ({
-          id: x.id,
-          timestamp: x.timestamp,
-          userName: x.userName,
-          userRole: x.userRole,
-          action: x.action,
-          entityType: x.entityType,
-          entityId: x.entityId,
-          description: x.description,
-          ipAddress: x.ipAddress,
-        })),
+        (data.items || []).map(
+          (x: any): AuditLogEntry => ({
+            id: x.id,
+            timestamp: x.timestamp,
+            userName: x.userName,
+            userRole: x.userRole,
+            action: x.action,
+            entityType: x.entityType,
+            entityId: x.entityId,
+            description: x.description,
+            ipAddress: x.ipAddress,
+          }),
+        ),
       );
       setAuditTotal(data.total ?? 0);
       setAuditPage(data.page ?? p);
@@ -339,9 +322,7 @@ function AnalyticsDashboard() {
                 <div className="text-gray-900">
                   {activity.user} {activity.action.toLowerCase()}
                 </div>
-                <div className="text-gray-500 text-sm">
-                  {activity.patient}
-                </div>
+                <div className="text-gray-500 text-sm">{activity.patient}</div>
               </div>
               <div className="text-gray-500 text-sm">{activity.time}</div>
             </div>
@@ -368,8 +349,16 @@ interface NewUserFormData {
   name: string;
   email: string;
   role: string;
-  phone: string;
-  department: string;
+  phone?: string;
+  password: string;
+}
+
+interface UserTableRow {
+  id: string | number;
+  name: string;
+  role: string;
+  email: string;
+  status: string;
 }
 
 type RoleFilter =
@@ -388,96 +377,23 @@ function UserManagement() {
   const [newUser, setNewUser] = useState<NewUserFormData>({
     name: "",
     email: "",
-    role: "Doctor",
+    role: "doctor",
     phone: "",
-    department: "General",
+    password: "",
   });
+  const [users, setUsers] = useState<UserTableRow[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const [users, setUsers] = useState<UserRecord[]>([
-    {
-      id: "u-1",
-      name: "Admin User",
-      role: "Administrator",
-      email: "admin@localhost",
-      status: "Active",
-      department: "Operations",
-      phone: "+251 911 000 001",
-      lastActive: "2026-01-17T08:10:00Z",
-      createdAt: "2026-01-05T07:00:00Z",
-    },
-    {
-      id: "u-2",
-      name: "Dr. Abebe Kebede",
-      role: "Doctor",
-      email: "doctor@localhost",
-      status: "Active",
-      department: "Cardiology",
-      phone: "+251 911 000 002",
-      lastActive: "2026-01-17T11:00:00Z",
-      createdAt: "2026-01-07T08:00:00Z",
-    },
-    {
-      id: "u-3",
-      name: "Nurse Tigist Alemu",
-      role: "Nurse",
-      email: "nurse@localhost",
-      status: "Active",
-      department: "Outpatient",
-      phone: "+251 911 000 003",
-      lastActive: "2026-01-16T15:00:00Z",
-      createdAt: "2026-01-09T08:00:00Z",
-    },
-    {
-      id: "u-4",
-      name: "Reception User",
-      role: "Reception",
-      email: "reception@localhost",
-      status: "Active",
-      department: "Front Desk",
-      phone: "+251 911 000 004",
-      lastActive: "2026-01-15T13:00:00Z",
-      createdAt: "2026-01-10T08:00:00Z",
-    },
-    {
-      id: "u-5",
-      name: "Clinician User",
-      role: "Clinician",
-      email: "clinician@localhost",
-      status: "Active",
-      department: "Diagnostics",
-      phone: "+251 911 000 005",
-      lastActive: "2026-01-12T12:00:00Z",
-      createdAt: "2026-01-12T08:00:00Z",
-    },
-    {
-      id: "u-6",
-      name: "Patient Seeded",
-      role: "Patient",
-      email: "patient@localhost",
-      status: "Inactive",
-      department: "Patient",
-      phone: "+251 911 000 006",
-      lastActive: "2026-01-03T09:00:00Z",
-      createdAt: "2025-12-12T08:00:00Z",
-    },
-  ]);
-
-  const [filters, setFilters] = useState<{
-    search: string;
-    role: RoleFilter;
-    status: StatusFilter;
-  }>({ search: "", role: "all", status: "all" });
-
-  const reportRef = useRef<HTMLDivElement>(null);
-
-  const roleOptions: RoleFilter[] = [
-    "all",
-    "Administrator",
-    "Doctor",
-    "Nurse",
-    "Reception",
-    "Clinician",
-    "Patient",
+  const roleOptions: { label: string; value: string }[] = [
+    { label: "Administrator", value: "admin" },
+    { label: "Doctor", value: "doctor" },
+    { label: "Nurse", value: "nurse" },
+    { label: "Reception", value: "reception" },
+    { label: "Clinician", value: "clinician" },
+    { label: "Patient", value: "patient" },
   ];
 
   const stats = useMemo(() => {
@@ -517,79 +433,77 @@ function UserManagement() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const id = crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}`;
-    const now = new Date().toISOString();
-    const record: UserRecord = {
-      id,
-      name: newUser.name,
-      email: newUser.email,
+    setSubmitting(true);
+    setFormError(null);
+    setFormSuccess(null);
+
+    createUser({
+      name: newUser.name.trim(),
+      email: newUser.email.trim(),
+      password: newUser.password,
       role: newUser.role,
-      status: "Active",
-      department: newUser.department || "General",
-      phone: newUser.phone,
-      lastActive: now,
-      createdAt: now,
-    };
-    setUsers((prev) => [record, ...prev]);
-    setNewUser({ name: "", email: "", role: "Doctor", phone: "", department: "General" });
-    setShowAddUserForm(false);
-    alert("User added successfully!");
+    })
+      .then((created) => {
+        setFormSuccess("User created successfully.");
+        setUsers((prev) => [
+          ...prev,
+          {
+            id: created.id || created._id || created.email,
+            name: created.name,
+            email: created.email,
+            role: created.role,
+            status: "Active",
+          },
+        ]);
+        setNewUser({
+          name: "",
+          email: "",
+          role: "doctor",
+          phone: "",
+          password: "",
+        });
+        setShowAddUserForm(false);
+      })
+      .catch(async (err: any) => {
+        try {
+          const text = await err.text();
+          setFormError(text || "Failed to create user.");
+        } catch {
+          setFormError("Failed to create user.");
+        }
+      })
+      .finally(() => setSubmitting(false));
   };
 
-  const handleDownloadPdf = () => {
-    if (!reportRef.current) return;
-    const printable = reportRef.current.innerHTML;
-    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
-    if (!popup) {
-      alert("Please allow pop-ups to download the PDF report.");
-      return;
-    }
-    popup.document.write(`
-      <html>
-        <head>
-          <title>User Records Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-            h1 { margin: 0 0 12px 0; }
-            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
-            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
-            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
-            th { background: #f1f5f9; }
-            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
-            .pill-active { background: #e0f2fe; color: #0369a1; }
-            .pill-inactive { background: #fef9c3; color: #854d0e; }
-          </style>
-        </head>
-        <body>
-          ${printable}
-        </body>
-      </html>
-    `);
-    popup.document.close();
-    popup.focus();
-    popup.print();
-  };
-
-  const renderStatusPill = (status: UserRecord["status"]) => (
-    <span
-      className={`px-3 py-1 rounded-full text-sm ${
-        status === "Active"
-          ? "bg-green-100 text-green-700"
-          : "bg-amber-100 text-amber-700"
-      }`}
-    >
-      {status}
-    </span>
-  );
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  useEffect(() => {
+    setLoadingUsers(true);
+    getUsers()
+      .then((data) => {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+        setUsers(
+          list.map((u: any) => ({
+            id: u.id || u._id || u.email,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            status: "Active",
+          })),
+        );
+      })
+      .catch(async (err: any) => {
+        try {
+          const text = await err.text();
+          setFormError(text || "Failed to load users.");
+        } catch {
+          setFormError("Failed to load users.");
+        }
+      })
+      .finally(() => setLoadingUsers(false));
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -835,40 +749,39 @@ function UserManagement() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Role *
-                  </label>
-                  <select
-                    name="role"
-                    value={newUser.role}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  >
-                    <option value="Administrator">Administrator</option>
-                    <option value="Doctor">Doctor</option>
-                    <option value="Nurse">Nurse</option>
-                    <option value="Reception">Reception</option>
-                    <option value="Clinician">Clinician</option>
-                    <option value="Patient">Patient</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role *
+                </label>
+                <select
+                  name="role"
+                  value={newUser.role}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                >
+                  {roleOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    name="department"
-                    value={newUser.department}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    placeholder="Cardiology, Ops, etc."
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Temporary Password *
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={newUser.password}
+                  onChange={handleInputChange}
+                  required
+                  minLength={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Set an initial password"
+                />
               </div>
 
               <div>
@@ -895,9 +808,10 @@ function UserManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-60"
                 >
-                  Add User
+                  {submitting ? "Adding..." : "Add User"}
                 </button>
               </div>
             </form>
@@ -1198,103 +1112,18 @@ function PatientRecordsAdmin() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left py-3 px-4 text-gray-700">Patient ID</th>
-                <th className="text-left py-3 px-4 text-gray-700">Name</th>
-                <th className="text-left py-3 px-4 text-gray-700">Status</th>
-                <th className="text-left py-3 px-4 text-gray-700">Risk</th>
-                <th className="text-left py-3 px-4 text-gray-700">Primary condition</th>
-                <th className="text-left py-3 px-4 text-gray-700">Last visit</th>
-                <th className="text-left py-3 px-4 text-gray-700">Contact</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id} className="border-t border-gray-200">
-                  <td className="py-3 px-4 text-gray-900 font-medium">{p.id}</td>
-                  <td className="py-3 px-4 text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <Stethoscope className="w-4 h-4 text-blue-500" />
-                      <div>
-                        <div>{p.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {p.gender} • {p.age} yrs • {p.bloodType}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    {renderPill(p.status, p.status === "Active" ? "green" : p.status === "Follow-up" ? "blue" : "amber")}
-                  </td>
-                  <td className="py-3 px-4">
-                    {renderPill(
-                      p.risk,
-                      p.risk === "High" ? "red" : p.risk === "Medium" ? "amber" : "blue",
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <span>{p.primaryCondition}</span>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Allergies: {p.allergies || "None"}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">{formatDate(p.lastVisit)}</td>
-                  <td className="py-3 px-4 text-gray-700">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      {p.email}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <Phone className="w-3 h-3" />
-                      {p.phone}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-500">
-                    No patients match the current filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div
-        ref={reportRef}
-        style={{ position: "absolute", left: "-9999px", top: 0 }}
-        aria-hidden
-      >
-        <h1>Patient Records Report</h1>
-        <div className="summary">
-          <div className="card">
-            <p className="muted">Total patients</p>
-            <strong>{stats.total}</strong>
+        {formError && (
+          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {formError}
           </div>
-          <div className="card">
-            <p className="muted">Active</p>
-            <strong>{stats.active}</strong>
+        )}
+        {formSuccess && (
+          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
+            {formSuccess}
           </div>
-          <div className="card">
-            <p className="muted">Follow-up</p>
-            <strong>{stats.followUp}</strong>
-          </div>
-          <div className="card">
-            <p className="muted">High-risk</p>
-            <strong>{stats.highRisk}</strong>
-          </div>
-        </div>
-        <table>
-          <thead>
+        )}
+        <table className="w-full">
+          <thead className="bg-gray-50">
             <tr>
               <th>Patient ID</th>
               <th>Name</th>
@@ -1306,11 +1135,28 @@ function PatientRecordsAdmin() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => (
-              <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>
-                  {p.name} ({p.gender}, {p.age} yrs, {p.bloodType})
+            {loadingUsers && (
+              <tr className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-600" colSpan={5}>
+                  Loading users...
+                </td>
+              </tr>
+            )}
+            {!loadingUsers && users.length === 0 && (
+              <tr className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-600" colSpan={5}>
+                  No users created yet. Use "Add New User" to create one.
+                </td>
+              </tr>
+            )}
+            {users.map((userRow) => (
+              <tr key={userRow.id} className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
+                <td className="py-4 px-6">
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                    {roleOptions.find((r) => r.value === userRow.role)?.label ||
+                      userRow.role}
+                  </span>
                 </td>
                 <td className="pill pill-status">{p.status}</td>
                 <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>

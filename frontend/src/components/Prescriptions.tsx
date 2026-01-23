@@ -1,5 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Plus, AlertTriangle, CheckCircle, Pill, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import {
+  Plus,
+  AlertTriangle,
+  CheckCircle,
+  Pill,
+  Search,
+  X,
+} from "lucide-react";
+import { getPrescriptions } from "../lib/api";
 
 interface Prescription {
   id: string;
@@ -10,67 +18,71 @@ interface Prescription {
   frequency: string;
   duration: string;
   date: string;
-  status: 'Active' | 'Completed' | 'Cancelled';
+  status: "Active" | "Completed" | "Cancelled";
 }
 
 const mockPrescriptions: Prescription[] = [
   {
-    id: 'RX001',
-    patientName: 'Alemayehu Girma',
-    patientId: 'P001',
-    medication: 'Metformin',
-    dosage: '500mg',
-    frequency: 'Twice daily',
-    duration: '90 days',
-    date: '2024-01-15',
-    status: 'Active',
+    id: "RX001",
+    patientName: "Alemayehu Girma",
+    patientId: "P001",
+    medication: "Metformin",
+    dosage: "500mg",
+    frequency: "Twice daily",
+    duration: "90 days",
+    date: "2024-01-15",
+    status: "Active",
   },
   {
-    id: 'RX002',
-    patientName: 'Sara Mohammed',
-    patientId: 'P002',
-    medication: 'Albuterol Inhaler',
-    dosage: '90mcg',
-    frequency: 'As needed',
-    duration: '30 days',
-    date: '2023-11-05',
-    status: 'Active',
+    id: "RX002",
+    patientName: "Sara Mohammed",
+    patientId: "P002",
+    medication: "Albuterol Inhaler",
+    dosage: "90mcg",
+    frequency: "As needed",
+    duration: "30 days",
+    date: "2023-11-05",
+    status: "Active",
   },
   {
-    id: 'RX003',
-    patientName: 'Daniel Bekele',
-    patientId: 'P003',
-    medication: 'Atorvastatin',
-    dosage: '20mg',
-    frequency: 'Once daily (evening)',
-    duration: '90 days',
-    date: '2023-12-20',
-    status: 'Active',
+    id: "RX003",
+    patientName: "Daniel Bekele",
+    patientId: "P003",
+    medication: "Atorvastatin",
+    dosage: "20mg",
+    frequency: "Once daily (evening)",
+    duration: "90 days",
+    date: "2023-12-20",
+    status: "Active",
   },
 ];
 
-function statusBadge(status: Prescription['status']) {
-  if (status === 'Active') return 'bg-green-100 text-green-700';
-  if (status === 'Completed') return 'bg-gray-100 text-gray-700';
-  return 'bg-red-100 text-red-700';
+function statusBadge(status: Prescription["status"]) {
+  if (status === "Active") return "bg-green-100 text-green-700";
+  if (status === "Completed") return "bg-gray-100 text-gray-700";
+  return "bg-red-100 text-red-700";
 }
 
 export function Prescriptions() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [showNewPrescription, setShowNewPrescription] = useState(false);
 
   const [showDetails, setShowDetails] = useState(false);
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
+  const [prescriptions, setPrescriptions] =
+    useState<Prescription[]>(mockPrescriptions);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filteredPrescriptions = useMemo(() => {
     const q = searchTerm.toLowerCase();
-    return mockPrescriptions.filter(
+    return (prescriptions || mockPrescriptions).filter(
       (rx) =>
         rx.patientName.toLowerCase().includes(q) ||
         rx.medication.toLowerCase().includes(q) ||
-        rx.id.toLowerCase().includes(q)
+        rx.id.toLowerCase().includes(q),
     );
-  }, [searchTerm]);
+  }, [searchTerm, prescriptions]);
 
   const openDetails = (rx: Prescription) => {
     setSelectedRx(rx);
@@ -81,6 +93,56 @@ export function Prescriptions() {
     setShowDetails(false);
     setSelectedRx(null);
   };
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getPrescriptions()
+      .then((res) => {
+        if (!mounted) return;
+        const items = res.items || res;
+        const mapped = (items || []).map(
+          (p: any): Prescription => ({
+            id: p._id || p.id || "",
+            patientName: p.patient?.name || p.patientId || "Patient",
+            patientId: p.patientId || (p.patient && p.patient._id) || "",
+            medication:
+              Array.isArray(p.medications) && p.medications.length
+                ? p.medications[0].name
+                : "Medication",
+            dosage:
+              Array.isArray(p.medications) && p.medications.length
+                ? p.medications[0].dosage
+                : "",
+            frequency:
+              Array.isArray(p.medications) && p.medications.length
+                ? p.medications[0].frequency
+                : "",
+            duration:
+              Array.isArray(p.medications) && p.medications.length
+                ? p.medications[0].duration
+                : "",
+            date: p.issueDate ? p.issueDate.slice(0, 10) : p.date || "",
+            status: "Active",
+          }),
+        );
+        // Always set prescriptions from backend response (allow empty array)
+        setPrescriptions(mapped);
+      })
+      .catch((err) => {
+        console.error("Failed to load prescriptions", err);
+        setError("Failed to load prescriptions.");
+        // on error, show no data instead of falling back to mocks
+        setPrescriptions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -110,6 +172,14 @@ export function Prescriptions() {
         </div>
 
         <div className="space-y-4">
+          {loading && (
+            <div className="text-gray-500 text-sm">
+              Loading prescriptions...
+            </div>
+          )}
+          {error && !loading && (
+            <div className="text-red-600 text-sm">{error}</div>
+          )}
           {filteredPrescriptions.map((rx) => (
             <div
               key={rx.id}
@@ -125,7 +195,9 @@ export function Prescriptions() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <div className="text-gray-900 font-medium break-words">{rx.medication}</div>
+                      <div className="text-gray-900 font-medium break-words">
+                        {rx.medication}
+                      </div>
                       <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
                         {rx.id}
                       </span>
@@ -159,7 +231,9 @@ export function Prescriptions() {
 
                 {/* Right */}
                 <div className="flex flex-row sm:flex-col items-start sm:items-end gap-3 sm:gap-2 flex-wrap sm:flex-nowrap">
-                  <span className={`px-3 py-1 rounded-full text-sm ${statusBadge(rx.status)}`}>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${statusBadge(rx.status)}`}
+                  >
                     {rx.status}
                   </span>
 
@@ -175,11 +249,19 @@ export function Prescriptions() {
             </div>
           ))}
 
-          {filteredPrescriptions.length === 0 && (
+          {!loading && prescriptions.length === 0 && !error && (
             <div className="text-gray-500 text-sm text-center py-10">
-              No prescriptions match your search.
+              No prescriptions found.
             </div>
           )}
+
+          {!loading &&
+            prescriptions.length > 0 &&
+            filteredPrescriptions.length === 0 && (
+              <div className="text-gray-500 text-sm text-center py-10">
+                No prescriptions match your search.
+              </div>
+            )}
         </div>
       </div>
 
@@ -187,7 +269,9 @@ export function Prescriptions() {
         <NewPrescriptionModal onClose={() => setShowNewPrescription(false)} />
       )}
 
-      {showDetails && <PrescriptionDetailsModal rx={selectedRx} onClose={closeDetails} />}
+      {showDetails && (
+        <PrescriptionDetailsModal rx={selectedRx} onClose={closeDetails} />
+      )}
     </div>
   );
 }
@@ -231,9 +315,12 @@ function PrescriptionDetailsModal({
         <div className="p-4 sm:p-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="text-gray-900 break-words">
-              Patient: <span className="font-medium">{rx.patientName}</span> ({rx.patientId})
+              Patient: <span className="font-medium">{rx.patientName}</span> (
+              {rx.patientId})
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm w-fit ${statusBadge(rx.status)}`}>
+            <span
+              className={`px-3 py-1 rounded-full text-sm w-fit ${statusBadge(rx.status)}`}
+            >
               {rx.status}
             </span>
           </div>
@@ -249,7 +336,9 @@ function PrescriptionDetailsModal({
 
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div className="text-gray-900 text-sm mb-1">Instructions</div>
-            <div className="text-gray-600 text-sm">No extra instructions provided yet.</div>
+            <div className="text-gray-600 text-sm">
+              No extra instructions provided yet.
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
@@ -280,13 +369,16 @@ function Info({ label, value }: { label: string; value: string }) {
    New Prescription Modal
    ======================= */
 function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
-  const [selectedPatient, setSelectedPatient] = useState('');
-  const [medication, setMedication] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState("");
+  const [medication, setMedication] = useState("");
   const [showAIAlert, setShowAIAlert] = useState(false);
 
   const handleMedicationChange = (med: string) => {
     setMedication(med);
-    if (selectedPatient === 'P001' && med.toLowerCase().includes('penicillin')) {
+    if (
+      selectedPatient === "P001" &&
+      med.toLowerCase().includes("penicillin")
+    ) {
       setShowAIAlert(true);
     } else {
       setShowAIAlert(false);
@@ -298,7 +390,10 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="bg-blue-600 text-white p-6 flex items-center justify-between sticky top-0">
           <h3 className="text-white">Create New Prescription</h3>
-          <button onClick={onClose} className="p-2 hover:bg-blue-700 rounded-lg transition-colors">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-blue-700 rounded-lg transition-colors"
+          >
             <Plus className="w-6 h-6 rotate-45" />
           </button>
         </div>
@@ -311,8 +406,9 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
                 <div>
                   <div className="text-red-900 mb-1">AI Safety Alert</div>
                   <div className="text-red-700 text-sm">
-                    <strong>Allergy Conflict Detected:</strong> Patient has a known allergy to Penicillin.
-                    This medication may cause adverse reactions. Please review patient allergies before
+                    <strong>Allergy Conflict Detected:</strong> Patient has a
+                    known allergy to Penicillin. This medication may cause
+                    adverse reactions. Please review patient allergies before
                     prescribing.
                   </div>
                 </div>
@@ -328,9 +424,15 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a patient...</option>
-              <option value="P001">Alemayehu Girma (P001) - Allergies: Penicillin, Peanuts</option>
-              <option value="P002">Sara Mohammed (P002) - No known allergies</option>
-              <option value="P003">Daniel Bekele (P003) - Allergies: Sulfa drugs</option>
+              <option value="P001">
+                Alemayehu Girma (P001) - Allergies: Penicillin, Peanuts
+              </option>
+              <option value="P002">
+                Sara Mohammed (P002) - No known allergies
+              </option>
+              <option value="P003">
+                Daniel Bekele (P003) - Allergies: Sulfa drugs
+              </option>
             </select>
           </div>
 
@@ -339,11 +441,15 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
               <div className="flex items-start gap-3">
                 <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-blue-900 text-sm mb-1">Current Medications</div>
+                  <div className="text-blue-900 text-sm mb-1">
+                    Current Medications
+                  </div>
                   <div className="text-blue-700 text-sm">
-                    {selectedPatient === 'P001' && 'Metformin 500mg, Lisinopril 10mg'}
-                    {selectedPatient === 'P002' && 'Albuterol Inhaler'}
-                    {selectedPatient === 'P003' && 'Atorvastatin 20mg, Aspirin 81mg'}
+                    {selectedPatient === "P001" &&
+                      "Metformin 500mg, Lisinopril 10mg"}
+                    {selectedPatient === "P002" && "Albuterol Inhaler"}
+                    {selectedPatient === "P003" &&
+                      "Atorvastatin 20mg, Aspirin 81mg"}
                   </div>
                 </div>
               </div>
@@ -409,11 +515,13 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
               disabled={showAIAlert}
               className={`flex-1 py-3 rounded-lg transition-colors ${
                 showAIAlert
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
-              {showAIAlert ? 'Resolve Safety Alert First' : 'Create Prescription'}
+              {showAIAlert
+                ? "Resolve Safety Alert First"
+                : "Create Prescription"}
             </button>
 
             <button
