@@ -10,6 +10,7 @@ import { PatientDashboard } from "./components/PatientDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import Notifications from "./components/Notifications";
 import { ReceptionDashboard } from "./components/ReceptorDashboard";
+import type { PatientRegistrationData } from "./components/ReceptorDashboard";
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -24,6 +25,31 @@ function App() {
     api.logout();
     setCurrentUser(null);
     setShowNotifications(false);
+  };
+
+  const handleRegisterPatient = async (data: PatientRegistrationData) => {
+    const name = [data.firstName, data.middleName, data.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    await api.createPatient({
+      name,
+      dob: data.dateOfBirth ? new Date(data.dateOfBirth).toISOString() : undefined,
+      gender: data.gender?.toLowerCase?.(),
+      contact: {
+        phone: data.phone,
+        email: data.email,
+      },
+      address: [data.addressLine1, data.addressLine2, data.city]
+        .filter(Boolean)
+        .join(", "),
+      allergies: data.allergies ? [data.allergies] : [],
+      medications: data.currentMedications
+        ? [{ name: data.currentMedications }]
+        : [],
+      medicalHistory: [],
+    });
   };
 
   // If not logged in, show login screen
@@ -47,7 +73,6 @@ function App() {
       );
 
     case "nurse":
-    
       return (
         <NurseDashboard
           user={currentUser}
@@ -70,6 +95,7 @@ function App() {
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
+          onRegisterPatient={handleRegisterPatient}
         />
       );
     case "admin":
@@ -78,7 +104,6 @@ function App() {
           user={currentUser}
           onLogout={handleLogout}
           onShowNotifications={() => setShowNotifications(true)}
-         
         />
       );
 

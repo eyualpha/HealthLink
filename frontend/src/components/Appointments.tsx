@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calendar, Clock, Plus, Search, User, X, FileText } from "lucide-react";
-import { getAppointments } from "../lib/api";
+import {
+  getAppointments,
+  createAppointment,
+  updateAppointment,
+  getPatients,
+  getDoctors,
+} from "../lib/api";
 
 interface AppointmentsProps {
   userRole: "doctor" | "nurse" | "patient";
@@ -8,7 +14,9 @@ interface AppointmentsProps {
 
 export interface Appointment {
   id: string;
+  patientId?: string;
   patientName: string;
+  doctorId?: string;
   doctorName: string;
   date: string;
   time: string;
@@ -16,6 +24,31 @@ export interface Appointment {
   status: "Scheduled" | "Completed" | "Cancelled" | "In Progress";
   notes?: string;
 }
+
+type ApiPatient = { _id?: string; id?: string; name?: string };
+type ApiDoctor = {
+  _id?: string;
+  id?: string;
+  fullname?: string;
+  name?: string;
+};
+type ApiAppointment = {
+  _id?: string;
+  id?: string;
+  patientId?: string;
+  doctorId?: string;
+  appointementDate?: string;
+  appointementTime?: string;
+  appointementType?: string;
+  date?: string;
+  time?: string;
+  type?: string;
+  status?: string;
+  notes?: string;
+  patientName?: string;
+  doctorName?: string;
+  patient?: { name?: string };
+};
 
 const initialAppointments: Appointment[] = [
   {
@@ -95,6 +128,12 @@ function statusBadge(status: Appointment["status"]) {
 export function Appointments({ userRole }: AppointmentsProps) {
   const [appointments, setAppointments] =
     useState<Appointment[]>(initialAppointments);
+  const [patientsList, setPatientsList] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [doctorsList, setDoctorsList] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [loading, setLoading] = useState(false);
@@ -130,37 +169,121 @@ export function Appointments({ userRole }: AppointmentsProps) {
     setShowRescheduleModal(true);
   };
 
-  const cancelAppointment = (apt: Appointment) => {
-    setAppointments((prev) =>
-      prev.map((x) => (x.id === apt.id ? { ...x, status: "Cancelled" } : x)),
-    );
+  const cancelAppointment = async (apt: Appointment) => {
+    try {
+      await updateAppointment(apt.id, { status: "canceled" });
+      setAppointments((prev) =>
+        prev.map((x) => (x.id === apt.id ? { ...x, status: "Cancelled" } : x)),
+      );
+    } catch (err) {
+      console.error("Failed to cancel appointment", err);
+    }
   };
 
-  const addAppointment = (data: Omit<Appointment, "id" | "status">) => {
-    setAppointments((prev) => [
-      {
-        id: nextId(prev),
+  const addAppointment = async (data: Omit<Appointment, "id" | "status">) => {
+    try {
+      const created = await createAppointment({
+        patientId: data.patientId,
+        doctorId: data.doctorId,
+        appointementDate: data.date,
+        appointementTime: data.time,
+        appointementType: data.type,
+        notes: data.notes,
+      });
+
+      const mapped: Appointment = {
+        id: created._id || created.id || nextId(appointments),
+        patientId: created.patientId || data.patientId,
+        doctorId: created.doctorId || data.doctorId,
+        patientName:
+          patientsList.find(
+            (p) => p.id === (created.patientId || data.patientId),
+          )?.name || data.patientName,
+        doctorName:
+          doctorsList.find((d) => d.id === (created.doctorId || data.doctorId))
+            ?.name || data.doctorName,
+        date: created.appointementDate?.slice(0, 10) || data.date,
+        time: created.appointementTime || data.time,
+        type: created.appointementType || data.type,
         status: "Scheduled",
-        ...data,
-      },
-      ...prev,
-    ]);
+        notes: created.notes || data.notes,
+      };
+
+      setAppointments((prev) => [mapped, ...prev]);
+    } catch (err) {
+      console.error("Failed to create appointment", err);
+    }
   };
 
-  const rescheduleAppointment = (id: string, date: string, time: string) => {
-    setAppointments((prev) =>
-      prev.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              date,
-              time,
-              status: x.status === "Cancelled" ? "Scheduled" : x.status,
-            }
-          : x,
-      ),
-    );
+  const rescheduleAppointment = async (
+    id: string,
+    date: string,
+    time: string,
+  ) => {
+    try {
+      await updateAppointment(id, {
+        appointementDate: date,
+        appointementTime: time,
+      });
+      setAppointments((prev) =>
+        prev.map((x) =>
+          x.id === id
+            ? {
+                ...x,
+                date,
+                time,
+                status: x.status === "Cancelled" ? "Scheduled" : x.status,
+              }
+            : x,
+        ),
+      );
+    } catch (err) {
+      console.error("Failed to reschedule appointment", err);
+    }
   };
+
+  const patientNameById = useMemo(() => {
+    return patientsList.reduce<Record<string, string>>((acc, p) => {
+      acc[p.id] = p.name;
+      return acc;
+    }, {});
+  }, [patientsList]);
+
+  const doctorNameById = useMemo(() => {
+    return doctorsList.reduce<Record<string, string>>((acc, d) => {
+      acc[d.id] = d.name;
+      return acc;
+    }, {});
+  }, [doctorsList]);
+
+  useEffect(() => {
+    getPatients()
+      .then((res) => {
+        const items = res.items || res;
+        setPatientsList(
+          (items || []).map((p: ApiPatient) => ({
+            id: p._id || p.id || "",
+            name: p.name || "Patient",
+          })),
+        );
+      })
+      .catch(() => {
+        setPatientsList([]);
+      });
+
+    getDoctors()
+      .then((items) => {
+        setDoctorsList(
+          (items || []).map((d: ApiDoctor) => ({
+            id: d._id || d.id || "",
+            name: d.fullname || d.name || "Doctor",
+          })),
+        );
+      })
+      .catch(() => {
+        setDoctorsList([]);
+      });
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -170,15 +293,25 @@ export function Appointments({ userRole }: AppointmentsProps) {
         const res = await getAppointments({});
         const items = res.items || res;
         const mapped: Appointment[] = (items || []).map(
-          (a: any): Appointment => {
+          (a: ApiAppointment): Appointment => {
             const statusRaw = (a.status || "Scheduled").toString();
             const statusCap =
               statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
             return {
               id: a._id || a.id || "APT",
+              patientId: a.patientId,
+              doctorId: a.doctorId,
               patientName:
-                a.patientName || a.patient?.name || a.patientId || "Patient",
-              doctorName: a.doctorName || a.doctorId || "Doctor",
+                a.patientName ||
+                patientNameById[a.patientId || ""] ||
+                a.patient?.name ||
+                a.patientId ||
+                "Patient",
+              doctorName:
+                a.doctorName ||
+                doctorNameById[a.doctorId || ""] ||
+                a.doctorId ||
+                "Doctor",
               date: a.appointementDate?.slice(0, 10) || a.date || "",
               time: a.appointementTime || a.time || "09:00",
               type: a.appointementType || a.type || "Appointment",
@@ -206,7 +339,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
       }
     };
     void load();
-  }, []);
+  }, [patientNameById, doctorNameById]);
 
   return (
     <div className="space-y-6">
@@ -273,7 +406,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
                   </div>
 
                   <div className="min-w-0">
-                    <div className="text-gray-900 mb-1 font-medium break-words">
+                    <div className="text-gray-900 mb-1 font-medium wrap-break-word">
                       {appointment.patientName}
                     </div>
                     <div className="text-gray-600 text-sm mb-2">
@@ -296,7 +429,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
                     </div>
 
                     {appointment.notes && (
-                      <div className="mt-2 text-sm text-gray-600 break-words">
+                      <div className="mt-2 text-sm text-gray-600 wrap-break-word">
                         Notes: {appointment.notes}
                       </div>
                     )}
@@ -360,8 +493,10 @@ export function Appointments({ userRole }: AppointmentsProps) {
       {showNewModal && (
         <NewAppointmentModal
           onClose={() => setShowNewModal(false)}
+          patients={patientsList}
+          doctors={doctorsList}
           onCreate={(data) => {
-            addAppointment(data);
+            void addAppointment(data);
             setShowNewModal(false);
           }}
         />
@@ -421,13 +556,17 @@ function ModalShell({
 
 function NewAppointmentModal({
   onClose,
+  patients,
+  doctors,
   onCreate,
 }: {
   onClose: () => void;
+  patients: Array<{ id: string; name: string }>;
+  doctors: Array<{ id: string; name: string }>;
   onCreate: (data: Omit<Appointment, "id" | "status">) => void;
 }) {
-  const [patientName, setPatientName] = useState("");
-  const [doctorName, setDoctorName] = useState("Dr. Abebe Kebede");
+  const [patientId, setPatientId] = useState("");
+  const [doctorId, setDoctorId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [type, setType] = useState("Check-up");
@@ -435,10 +574,16 @@ function NewAppointmentModal({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!patientName.trim() || !date || !time) return;
+    if (!patientId || !doctorId || !date || !time) return;
+
+    const patientName =
+      patients.find((p) => p.id === patientId)?.name || "Patient";
+    const doctorName = doctors.find((d) => d.id === doctorId)?.name || "Doctor";
 
     onCreate({
-      patientName: patientName.trim(),
+      patientId,
+      patientName,
+      doctorId,
       doctorName,
       date,
       time,
@@ -451,26 +596,34 @@ function NewAppointmentModal({
     <ModalShell title="Schedule New Appointment" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="block text-gray-700 mb-2">Patient Name</label>
-          <input
-            value={patientName}
-            onChange={(e) => setPatientName(e.target.value)}
-            type="text"
+          <label className="block text-gray-700 mb-2">Patient</label>
+          <select
+            value={patientId}
+            onChange={(e) => setPatientId(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="e.g. Mekdes Hailu"
-          />
+          >
+            <option value="">Select patient...</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label className="block text-gray-700 mb-2">Doctor</label>
           <select
-            value={doctorName}
-            onChange={(e) => setDoctorName(e.target.value)}
+            value={doctorId}
+            onChange={(e) => setDoctorId(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option>Dr. Abebe Kebede</option>
-            <option>Dr. Tigist Alemu</option>
-            <option>Dr. Solomon Tesfaye</option>
+            <option value="">Select doctor...</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -536,7 +689,7 @@ function NewAppointmentModal({
         </div>
 
         <p className="text-xs text-gray-500">
-          Demo mode: this saves to local state only (no backend yet).
+          Appointments are saved to the backend when you submit.
         </p>
       </form>
     </ModalShell>

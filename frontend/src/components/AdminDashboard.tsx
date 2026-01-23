@@ -122,18 +122,18 @@ export function AdminDashboard({
         search: filters.search,
         action: filters.action === "all" ? undefined : filters.action,
       });
-
-      const mapped = (data.items || []).map(
-        (x: AuditLogEntry): AuditLogEntry => ({
-          id: x.id,
-          timestamp: x.timestamp,
-          userName: x.userName,
-          userRole: x.userRole,
-          action: x.action,
-          entityType: x.entityType,
-          entityId: x.entityId,
-          description: x.description,
-          ipAddress: x.ipAddress,
+      const items = Array.isArray(data.items) ? data.items : [];
+      const mapped = items.map(
+        (x: Record<string, unknown>): AuditLogEntry => ({
+          id: (x.id as string) || "",
+          timestamp: (x.timestamp as string) || "",
+          userName: (x.userName as string) || "",
+          userRole: (x.userRole as string) || "",
+          action: (x.action as AuditEventType) || "view",
+          entityType: (x.entityType as string) || "",
+          entityId: (x.entityId as string) || "",
+          description: (x.description as string) || "",
+          ipAddress: (x.ipAddress as string) || "",
         }),
       );
       const nextEvents = mapped.length > 0 ? mapped : mockAuditEvents;
@@ -187,19 +187,15 @@ export function AdminDashboard({
           initialActionFilter={auditFilters.action}
         />
       )}
+
     </DashboardLayout>
   );
 }
 
-// ---------- existing dashboards below (unchanged apart from imports) ----------
-
 function AnalyticsDashboard() {
   return (
     <div className="space-y-6">
-      <h2 className="text-gray-900">Analytics Dashboard</h2>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="bg-blue-100 p-3 rounded-lg">
@@ -258,16 +254,12 @@ function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-gray-900 mb-4">Daily Appointments</h3>
           <div className="h-64 flex items-end justify-between gap-2">
             {[45, 62, 58, 71, 68, 85, 92].map((value, idx) => (
-              <div
-                key={idx}
-                className="flex-1 flex flex-col items-center gap-2"
-              >
+              <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                 <div
                   className="w-full bg-blue-600 rounded-t-lg transition-all hover:bg-blue-700"
                   style={{ height: `${(value / 100) * 100}%` }}
@@ -284,21 +276,9 @@ function AnalyticsDashboard() {
           <h3 className="text-gray-900 mb-4">System Usage</h3>
           <div className="space-y-4">
             {[
-              {
-                label: "Patient Records Access",
-                value: 87,
-                color: "bg-blue-600",
-              },
-              {
-                label: "Appointment Scheduling",
-                value: 72,
-                color: "bg-green-600",
-              },
-              {
-                label: "Prescription Management",
-                value: 64,
-                color: "bg-purple-600",
-              },
+              { label: "Patient Records Access", value: 87, color: "bg-blue-600" },
+              { label: "Appointment Scheduling", value: 72, color: "bg-green-600" },
+              { label: "Prescription Management", value: 64, color: "bg-purple-600" },
               { label: "Lab Results Entry", value: 58, color: "bg-orange-600" },
             ].map((item, idx) => (
               <div key={idx}>
@@ -318,7 +298,6 @@ function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Recent Activity */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-gray-900 mb-4">Recent System Activity</h3>
         <div className="space-y-3">
@@ -348,10 +327,7 @@ function AnalyticsDashboard() {
               time: "1 hour ago",
             },
           ].map((activity, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-            >
+            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
                 <div className="text-gray-900">
                   {activity.user} {activity.action.toLowerCase()}
@@ -649,9 +625,13 @@ function UserManagement() {
       })
       .catch(async (err: unknown) => {
         if (err instanceof Response) {
-          const text = await err.text();
-          setFormError(text || "Failed to create user.");
-          return;
+          try {
+            const text = await err.text();
+            setFormError(text || "Failed to create user.");
+            return;
+          } catch (parseErr) {
+            console.error("Failed to parse error response", parseErr);
+          }
         }
         if (err instanceof Error) {
           setFormError(err.message || "Failed to create user.");
@@ -723,9 +703,13 @@ function UserManagement() {
       .catch(async (err: unknown) => {
         if (!isActive) return;
         if (err instanceof Response) {
-          const text = await err.text();
-          setLoadError(text || "Failed to load users");
-          return;
+          try {
+            const text = await err.text();
+            setLoadError(text || "Failed to load users");
+            return;
+          } catch (parseErr) {
+            console.error("Failed to parse error response", parseErr);
+          }
         }
         if (err instanceof Error) {
           setLoadError(err.message || "Failed to load users");
@@ -1403,9 +1387,7 @@ function PatientRecordsAdmin() {
     const allergiesStr = Array.isArray(doc.allergies)
       ? doc.allergies.join(", ") || "None"
       : "None";
-    const risk: PatientRisk = doc.allergies && doc.allergies.length > 0
-      ? "Medium"
-      : "Low";
+    const risk: PatientRisk = doc.allergies && doc.allergies.length > 0 ? "Medium" : "Low";
     return {
       id: doc._id || doc.id || "",
       name: doc.name || "Unnamed",

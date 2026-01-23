@@ -10,6 +10,7 @@ import patientRoutes from "./routes/patients.js";
 import prescriptionRoutes from "./routes/prescriptions.js";
 import appointmentRoutes from "./routes/appointments.js";
 import aduitRoutes from "./routes/audit.js";
+import doctorRoutes from "./routes/doctors.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
 import { CORS_ORIGIN } from "./configs/env.config.js";
@@ -88,6 +89,7 @@ app.get("/db-status", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/patients", patientRoutes);
+app.use("/doctors", doctorRoutes);
 app.use("/prescriptions", prescriptionRoutes);
 app.use("/appointments", appointmentRoutes);
 app.use("/audit", aduitRoutes);
@@ -107,8 +109,5 @@ app.get("/secure/clinician", authenticateJWT, (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   res.json({ ok: true, role: req.user.role });
 });
-
-
-
 
 app.use("/audit-logs", auditLogRoutes);

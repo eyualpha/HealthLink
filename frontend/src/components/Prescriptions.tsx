@@ -7,7 +7,12 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { getPrescriptions } from "../lib/api";
+import {
+  getPrescriptions,
+  createPrescription,
+  getPatients,
+  getDoctors,
+} from "../lib/api";
 
 interface Prescription {
   id: string;
@@ -20,6 +25,29 @@ interface Prescription {
   date: string;
   status: "Active" | "Completed" | "Cancelled";
 }
+
+type ApiPrescription = {
+  _id?: string;
+  id?: string;
+  patientId?: string;
+  patient?: { _id?: string; name?: string };
+  medications?: Array<{
+    name?: string;
+    dosage?: string;
+    frequency?: string;
+    duration?: string;
+  }>;
+  issueDate?: string;
+  date?: string;
+};
+
+type ApiPatient = { _id?: string; id?: string; name?: string };
+type ApiDoctor = {
+  _id?: string;
+  id?: string;
+  fullname?: string;
+  name?: string;
+};
 
 const mockPrescriptions: Prescription[] = [
   {
@@ -71,7 +99,13 @@ export function Prescriptions() {
   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
   const [prescriptions, setPrescriptions] =
     useState<Prescription[]>(mockPrescriptions);
-  const [loading, setLoading] = useState(false);
+  const [patientsList, setPatientsList] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [doctorsList, setDoctorsList] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const filteredPrescriptions = useMemo(() => {
@@ -96,32 +130,30 @@ export function Prescriptions() {
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
-    setError(null);
     getPrescriptions()
       .then((res) => {
         if (!mounted) return;
         const items = res.items || res;
         const mapped = (items || []).map(
-          (p: any): Prescription => ({
+          (p: ApiPrescription): Prescription => ({
             id: p._id || p.id || "",
             patientName: p.patient?.name || p.patientId || "Patient",
             patientId: p.patientId || (p.patient && p.patient._id) || "",
             medication:
               Array.isArray(p.medications) && p.medications.length
-                ? p.medications[0].name
+                ? p.medications[0].name || "Medication"
                 : "Medication",
             dosage:
               Array.isArray(p.medications) && p.medications.length
-                ? p.medications[0].dosage
+                ? p.medications[0].dosage || ""
                 : "",
             frequency:
               Array.isArray(p.medications) && p.medications.length
-                ? p.medications[0].frequency
+                ? p.medications[0].frequency || ""
                 : "",
             duration:
               Array.isArray(p.medications) && p.medications.length
-                ? p.medications[0].duration
+                ? p.medications[0].duration || ""
                 : "",
             date: p.issueDate ? p.issueDate.slice(0, 10) : p.date || "",
             status: "Active",
@@ -142,6 +174,31 @@ export function Prescriptions() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    getPatients()
+      .then((res) => {
+        const items = res.items || res;
+        setPatientsList(
+          (items || []).map((p: ApiPatient) => ({
+            id: p._id || p.id || "",
+            name: p.name || "Patient",
+          })),
+        );
+      })
+      .catch(() => setPatientsList([]));
+
+    getDoctors()
+      .then((items) => {
+        setDoctorsList(
+          (items || []).map((d: ApiDoctor) => ({
+            id: d._id || d.id || "",
+            name: d.fullname || d.name || "Doctor",
+          })),
+        );
+      })
+      .catch(() => setDoctorsList([]));
   }, []);
 
   return (
@@ -195,7 +252,7 @@ export function Prescriptions() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <div className="text-gray-900 font-medium break-words">
+                      <div className="text-gray-900 font-medium wrap-break-word">
                         {rx.medication}
                       </div>
                       <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
@@ -203,7 +260,7 @@ export function Prescriptions() {
                       </span>
                     </div>
 
-                    <div className="text-gray-700 mb-3 break-words">
+                    <div className="text-gray-700 mb-3 wrap-break-word">
                       Patient: {rx.patientName} ({rx.patientId})
                     </div>
 
@@ -266,7 +323,15 @@ export function Prescriptions() {
       </div>
 
       {showNewPrescription && (
-        <NewPrescriptionModal onClose={() => setShowNewPrescription(false)} />
+        <NewPrescriptionModal
+          patients={patientsList}
+          doctors={doctorsList}
+          onClose={() => setShowNewPrescription(false)}
+          onCreate={(created) => {
+            setPrescriptions((prev) => [created, ...prev]);
+            setShowNewPrescription(false);
+          }}
+        />
       )}
 
       {showDetails && (
@@ -314,7 +379,7 @@ function PrescriptionDetailsModal({
 
         <div className="p-4 sm:p-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="text-gray-900 break-words">
+            <div className="text-gray-900 wrap-break-word">
               Patient: <span className="font-medium">{rx.patientName}</span> (
               {rx.patientId})
             </div>
@@ -360,7 +425,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="text-gray-500 text-sm">{label}</div>
-      <div className="text-gray-900 break-words">{value}</div>
+      <div className="text-gray-900 wrap-break-word">{value}</div>
     </div>
   );
 }
@@ -368,9 +433,25 @@ function Info({ label, value }: { label: string; value: string }) {
 /* =======================
    New Prescription Modal
    ======================= */
-function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
+function NewPrescriptionModal({
+  onClose,
+  patients,
+  doctors,
+  onCreate,
+}: {
+  onClose: () => void;
+  patients: Array<{ id: string; name: string }>;
+  doctors: Array<{ id: string; name: string }>;
+  onCreate: (created: Prescription) => void;
+}) {
   const [selectedPatient, setSelectedPatient] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState("");
   const [medication, setMedication] = useState("");
+  const [dosage, setDosage] = useState("");
+  const [frequency, setFrequency] = useState("Once daily");
+  const [duration, setDuration] = useState("7 days");
+  const [instructions, setInstructions] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [showAIAlert, setShowAIAlert] = useState(false);
 
   const handleMedicationChange = (med: string) => {
@@ -382,6 +463,46 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
       setShowAIAlert(true);
     } else {
       setShowAIAlert(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient || !selectedDoctor || !medication.trim()) return;
+    try {
+      setSubmitting(true);
+      const created = await createPrescription({
+        patientId: selectedPatient,
+        doctorId: selectedDoctor,
+        medications: [
+          {
+            name: medication.trim(),
+            dosage,
+            frequency,
+            duration,
+          },
+        ],
+        instructions: instructions.trim() || "Take as directed",
+      });
+
+      const mapped: Prescription = {
+        id: created._id || created.id || "RX",
+        patientName:
+          patients.find((p) => p.id === selectedPatient)?.name || "Patient",
+        patientId: selectedPatient,
+        medication: medication.trim(),
+        dosage,
+        frequency,
+        duration,
+        date: created.issueDate ? created.issueDate.slice(0, 10) : "",
+        status: "Active",
+      };
+
+      onCreate(mapped);
+    } catch (err) {
+      console.error("Failed to create prescription", err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -398,11 +519,11 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <form className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {showAIAlert && (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="text-red-900 mb-1">AI Safety Alert</div>
                   <div className="text-red-700 text-sm">
@@ -424,22 +545,34 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select a patient...</option>
-              <option value="P001">
-                Alemayehu Girma (P001) - Allergies: Penicillin, Peanuts
-              </option>
-              <option value="P002">
-                Sara Mohammed (P002) - No known allergies
-              </option>
-              <option value="P003">
-                Daniel Bekele (P003) - Allergies: Sulfa drugs
-              </option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 mb-2">Doctor</label>
+            <select
+              value={selectedDoctor}
+              onChange={(e) => setSelectedDoctor(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a doctor...</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
             </select>
           </div>
 
           {selectedPatient && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="text-blue-900 text-sm mb-1">
                     Current Medications
@@ -472,13 +605,19 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
               <label className="block text-gray-700 mb-2">Dosage</label>
               <input
                 type="text"
+                value={dosage}
+                onChange={(e) => setDosage(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., 500mg"
               />
             </div>
             <div>
               <label className="block text-gray-700 mb-2">Frequency</label>
-              <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
                 <option>Once daily</option>
                 <option>Twice daily</option>
                 <option>Three times daily</option>
@@ -490,7 +629,11 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
 
           <div>
             <label className="block text-gray-700 mb-2">Duration</label>
-            <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
               <option>7 days</option>
               <option>14 days</option>
               <option>30 days</option>
@@ -504,6 +647,8 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
             <label className="block text-gray-700 mb-2">Instructions</label>
             <textarea
               rows={4}
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Special instructions for the patient..."
             ></textarea>
@@ -512,16 +657,18 @@ function NewPrescriptionModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
               type="submit"
-              disabled={showAIAlert}
+              disabled={showAIAlert || submitting}
               className={`flex-1 py-3 rounded-lg transition-colors ${
-                showAIAlert
+                showAIAlert || submitting
                   ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                   : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
               {showAIAlert
                 ? "Resolve Safety Alert First"
-                : "Create Prescription"}
+                : submitting
+                  ? "Creating..."
+                  : "Create Prescription"}
             </button>
 
             <button
