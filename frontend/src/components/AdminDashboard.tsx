@@ -261,7 +261,7 @@ function UserManagement() {
  {showAddUserForm && (
   <div 
     onClick={() => setShowAddUserForm(false)}
-    className="fixed inset-0 bg-gray-900/10 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
+    className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
   >
     <div 
       onClick={(e) => e.stopPropagation()}
