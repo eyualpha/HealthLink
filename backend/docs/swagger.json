@@ -3,29 +3,169 @@
   "info": {
     "title": "HealthLink API Documentation",
     "version": "1.0.0",
-    "description": "Documentation for the HealthLink backend services."
+    "description": "Comprehensive API documentation for the HealthLink Capstone Project. Includes Auth, Appointments, Patients, and Prescriptions."
   },
   "servers": [
     {
       "url": "http://localhost:5000",
-      "description": "Local Development Server"
+      "description": "Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
     }
   ],
   "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new patient",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "name"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string", "minLength": 6 },
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "User registered successfully" },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email already in use" }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
-        "summary": "User Login",
+        "tags": ["Authentication"],
+        "summary": "Login to get tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": { "description": "Login successful" },
           "401": { "description": "Invalid credentials" }
         }
       }
     },
-    "/api/users": {
+    "/api/appointments": {
       "get": {
-        "summary": "Get all users",
+        "tags": ["Appointments"],
+        "summary": "List appointments",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "List of appointments" },
+          "403": { "description": "Forbidden" }
+        }
+      },
+      "post": {
+        "tags": ["Appointments"],
+        "summary": "Create a new appointment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patientId", "doctorId", "appointementDate", "appointementTime", "appointementType"],
+                "properties": {
+                  "patientId": { "type": "string" },
+                  "doctorId": { "type": "string" },
+                  "appointementDate": { "type": "string", "format": "date-time" },
+                  "appointementTime": { "type": "string" },
+                  "appointementType": { "type": "string" },
+                  "notes": { "type": "string" },
+                  "status": { "type": "string", "enum": ["scheduled", "completed", "canceled"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Appointment created" },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/patients": {
+      "get": {
+        "tags": ["Patients"],
+        "summary": "Search or list patients",
+        "parameters": [
+          { "name": "q", "in": "query", "description": "Search query", "schema": { "type": "string" } }
+        ],
         "responses": {
           "200": { "description": "Success" }
+        }
+      }
+    },
+    "/api/prescriptions": {
+      "post": {
+        "tags": ["Prescriptions"],
+        "summary": "Create a prescription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patientId", "doctorId", "medications", "instructions"],
+                "properties": {
+                  "patientId": { "type": "string" },
+                  "doctorId": { "type": "string" },
+                  "instructions": { "type": "string" },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "dosage": { "type": "string" },
+                        "frequency": { "type": "string" },
+                        "duration": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Prescription created" }
         }
       }
     }
