@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { User } from "./types";
-import api from './lib/api';
+import api from "./lib/api";
 
 // Components
 import { Login } from "./components/Login";
@@ -10,15 +10,15 @@ import { PatientDashboard } from "./components/PatientDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import Notifications from "./components/Notifications";
 import { ReceptionDashboard } from "./components/ReceptorDashboard";
+import { Landing } from "./components/Landing";
 
 function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [showNotifications, setShowNotifications] = useState(false);
-
-  useEffect(() => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const session = api.getSession();
-    if (session?.user) setCurrentUser(session.user);
-  }, []);
+    return session?.user ?? null;
+  });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
 
   const handleLogin = (user: User) => setCurrentUser(user);
 
@@ -26,7 +26,12 @@ function App() {
     api.logout();
     setCurrentUser(null);
     setShowNotifications(false);
+    setShowLanding(true);
   };
+
+  if (!currentUser && showLanding) {
+    return <Landing onLoginClick={() => setShowLanding(false)} />;
+  }
 
   // If not logged in, show login screen
   if (!currentUser) return <Login onLogin={handleLogin} />;

@@ -78,4 +78,34 @@ router.get("/:id", authenticateJWT, async (req, res) => {
   return res.json(prescription);
 });
 
+router.get("/", authenticateJWT, async (req, res) => {
+  const role = req.user.role;
+  const userId = req.user.id;
+  const page = parseInt(req.query.page || "1", 10);
+  const limit = Math.min(parseInt(req.query.limit || "25", 10), 100);
+  const filter = {};
+  const clinicalStaffRoles = [
+    Roles.ADMIN,
+    Roles.DOCTOR,
+    Roles.NURSE,
+    Roles.CLINICIAN,
+  ];
+  const isClinicalStaff = clinicalStaffRoles.includes(role);
+
+  if (isClinicalStaff) {
+    if (req.query.patientId) filter.patientId = req.query.patientId;
+    if (req.query.doctorId) filter.doctorId = req.query.doctorId;
+  } else if (role === Roles.PATIENT) {
+    filter.patientId = userId;
+  } else {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const items = await Prescription.find(filter)
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .sort({ issueDate: -1, createdAt: -1 });
+
+  res.json({ page, limit, items }).status(200);
+});
+
 export default router;
