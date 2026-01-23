@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
 import { PatientRecords } from "./PatientRecords";
@@ -8,10 +8,19 @@ import { Users, Calendar, Activity, Clipboard } from "lucide-react";
 interface NurseDashboardProps {
   user: User;
   onLogout: () => void;
-  onShowNotifications: () => void; // âœ… NEW
+  onShowNotifications: () => void;
 }
 
 type NurseView = "overview" | "patients" | "appointments" | "vitals";
+type VitalEntry = {
+  patient: string;
+  patientId: string;
+  bp: string;
+  hr: string;
+  temp: string;
+  spo2: string;
+  time: string;
+};
 
 export function NurseDashboard({ user, onLogout, onShowNotifications }: NurseDashboardProps) {
   const [activeView, setActiveView] = useState<NurseView>("overview");
@@ -30,7 +39,7 @@ export function NurseDashboard({ user, onLogout, onShowNotifications }: NurseDas
       menuItems={menuItems}
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as NurseView)}
-      onShowNotifications={onShowNotifications} // âœ… NEW (bell works now)
+      onShowNotifications={onShowNotifications}
     >
       {activeView === "overview" && <NurseOverview />}
       {activeView === "patients" && <PatientRecords userRole="nurse" />}
@@ -111,49 +120,198 @@ function NurseOverview() {
 }
 
 function VitalSigns() {
+  const initialVitals: VitalEntry[] = [
+    {
+      patient: "Alemayehu Girma",
+      patientId: "P001",
+      bp: "130/85",
+      hr: "72",
+      temp: "36.8°C",
+      spo2: "98%",
+      time: "09:15 AM",
+    },
+    {
+      patient: "Sara Mohammed",
+      patientId: "P002",
+      bp: "120/80",
+      hr: "68",
+      temp: "37.0°C",
+      spo2: "99%",
+      time: "10:30 AM",
+    },
+    {
+      patient: "Daniel Bekele",
+      patientId: "P003",
+      bp: "135/88",
+      hr: "75",
+      temp: "36.5°C",
+      spo2: "97%",
+      time: "11:45 AM",
+    },
+  ];
+
+  const [vitals, setVitals] = useState<VitalEntry[]>(initialVitals);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<VitalEntry>({
+    patient: "",
+    patientId: "",
+    bp: "",
+    hr: "",
+    temp: "",
+    spo2: "",
+    time: "",
+  });
+  const [error, setError] = useState<string>("");
+
+  const formatNow = () =>
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const resetForm = () => {
+    setForm({ patient: "", patientId: "", bp: "", hr: "", temp: "", spo2: "", time: "" });
+    setError("");
+  };
+
+  const handleAddVitals = (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.patient.trim() || !form.patientId.trim()) {
+      setError("Patient name and ID are required");
+      return;
+    }
+
+    const newEntry: VitalEntry = {
+      ...form,
+      time: form.time || formatNow(),
+    };
+
+    setVitals((prev) => [newEntry, ...prev]);
+    setShowForm(false);
+    resetForm();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">Vital Signs Recording</h2>
-        <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Clipboard className="w-5 h-5" />
           Record New Vitals
         </button>
       </div>
 
+      {showForm && (
+        <form
+          onSubmit={handleAddVitals}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Patient Name</div>
+              <input
+                value={form.patient}
+                onChange={(e) => setForm((p) => ({ ...p, patient: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="Jane Doe"
+              />
+            </div>
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Patient ID</div>
+              <input
+                value={form.patientId}
+                onChange={(e) => setForm((p) => ({ ...p, patientId: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="P123"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Blood Pressure</div>
+              <input
+                value={form.bp}
+                onChange={(e) => setForm((p) => ({ ...p, bp: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="120/80"
+              />
+            </div>
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Heart Rate (bpm)</div>
+              <input
+                value={form.hr}
+                onChange={(e) => setForm((p) => ({ ...p, hr: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="72"
+              />
+            </div>
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Temperature (°C)</div>
+              <input
+                value={form.temp}
+                onChange={(e) => setForm((p) => ({ ...p, temp: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="36.8°C"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <div className="text-gray-500 text-sm mb-1">SpO2 (%)</div>
+              <input
+                value={form.spo2}
+                onChange={(e) => setForm((p) => ({ ...p, spo2: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="98%"
+              />
+            </div>
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Recorded Time</div>
+              <input
+                value={form.time}
+                onChange={(e) => setForm((p) => ({ ...p, time: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="02:15 PM"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Save Vitals
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                resetForm();
+                setShowForm(false);
+              }}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-gray-900 mb-4">Recent Vital Signs</h3>
         <div className="space-y-4">
-          {[
-            {
-              patient: "Alemayehu Girma",
-              patientId: "P001",
-              bp: "130/85",
-              hr: "72",
-              temp: "36.8Â°C",
-              spo2: "98%",
-              time: "09:15 AM",
-            },
-            {
-              patient: "Sara Mohammed",
-              patientId: "P002",
-              bp: "120/80",
-              hr: "68",
-              temp: "37.0Â°C",
-              spo2: "99%",
-              time: "10:30 AM",
-            },
-            {
-              patient: "Daniel Bekele",
-              patientId: "P003",
-              bp: "135/88",
-              hr: "75",
-              temp: "36.5Â°C",
-              spo2: "97%",
-              time: "11:45 AM",
-            },
-          ].map((vital, idx) => (
-            <div key={idx} className="border border-gray-200 rounded-lg p-4">
+          {vitals.map((vital, idx) => (
+            <div key={`${vital.patientId}-${idx}`} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="text-gray-900 mb-1">
