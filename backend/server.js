@@ -9,6 +9,7 @@ import userRoutes from "./routes/users.js";
 import patientRoutes from "./routes/patients.js";
 import prescriptionRoutes from "./routes/prescriptions.js";
 import appointmentRoutes from "./routes/appointments.js";
+import aduitRoutes from "./routes/audit.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
 import { CORS_ORIGIN } from "./configs/env.config.js";
@@ -89,6 +90,7 @@ app.use("/users", userRoutes);
 app.use("/patients", patientRoutes);
 app.use("/prescriptions", prescriptionRoutes);
 app.use("/appointments", appointmentRoutes);
+app.use("/audit", aduitRoutes);
 
 app.get("/secure/admin", authenticateJWT, (req, res) => {
   if (req.user.role !== Roles.ADMIN)
