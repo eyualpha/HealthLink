@@ -28,8 +28,6 @@ interface AdminDashboardProps {
   onLogout: () => void;
   onShowNotifications: () => void;
   accessToken?: string;
-  
-  // accessToken: string; // 👈 add this so we can call the backend
 }
 
 type AdminView =
