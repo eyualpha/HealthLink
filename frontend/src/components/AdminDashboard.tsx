@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
 import {
@@ -9,19 +9,35 @@ import {
   TrendingUp,
   Clock,
   X,
+  Download,
+  Search,
+  ShieldCheck,
+  Filter,
+  Mail,
+  Phone,
+  FileText,
+  Stethoscope,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
+import api from "../lib/api";
+
 import { createUser, getUsers, getAuditLogs } from "../lib/api";
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
   onShowNotifications: () => void;
-  accessToken: string; // 👈 add this so we can call the backend
+  accessToken?: string;
 }
 
-type AdminView = "analytics" | "users" | "system" | "reports" | "audit";
+type AdminView =
+  | "analytics"
+  | "users"
+  | "patients"
+  | "system"
+  | "reports"
+  | "audit";
 
 export function AdminDashboard({
   user,
@@ -30,6 +46,8 @@ export function AdminDashboard({
   accessToken,
 }: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>("analytics");
+  const session = api.getSession();
+  const authToken = accessToken || session?.accessToken;
 
   // --- audit log state (for the Audit tab) ---
   const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
@@ -94,6 +112,11 @@ export function AdminDashboard({
       icon: BarChart3,
     },
     { id: "users" as AdminView, label: "User Management", icon: Users },
+    {
+      id: "patients" as AdminView,
+      label: "Patient Records",
+      icon: Stethoscope,
+    },
     { id: "system" as AdminView, label: "System Health", icon: Activity },
     { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
     { id: "audit" as AdminView, label: "Audit Log", icon: Activity },
@@ -110,6 +133,7 @@ export function AdminDashboard({
     >
       {activeView === "analytics" && <AnalyticsDashboard />}
       {activeView === "users" && <UserManagement />}
+      {activeView === "patients" && <PatientRecordsAdmin />}
       {activeView === "system" && <SystemHealth />}
       {activeView === "reports" && <Reports />}
       {activeView === "audit" && (
@@ -309,6 +333,18 @@ function AnalyticsDashboard() {
   );
 }
 
+interface UserRecord {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  status: "Active" | "Inactive";
+  department: string;
+  phone?: string;
+  lastActive: string;
+  createdAt: string;
+}
+
 interface NewUserFormData {
   name: string;
   email: string;
@@ -324,6 +360,17 @@ interface UserTableRow {
   email: string;
   status: string;
 }
+
+type RoleFilter =
+  | "all"
+  | "Administrator"
+  | "Doctor"
+  | "Nurse"
+  | "Reception"
+  | "Clinician"
+  | "Patient";
+
+type StatusFilter = "all" | "Active" | "Inactive";
 
 function UserManagement() {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
@@ -348,6 +395,31 @@ function UserManagement() {
     { label: "Clinician", value: "clinician" },
     { label: "Patient", value: "patient" },
   ];
+
+  const stats = useMemo(() => {
+    const active = users.filter((u) => u.status === "Active").length;
+    const inactive = users.length - active;
+    const now = new Date();
+    const createdThisMonth = users.filter((u) => {
+      const d = new Date(u.createdAt);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+    return { total: users.length, active, inactive, createdThisMonth };
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+    return users
+      .filter((u) =>
+        [u.name, u.email, u.role, u.department]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+      )
+      .filter((u) => (filters.role === "all" ? true : u.role === filters.role))
+      .filter((u) => (filters.status === "all" ? true : u.status === filters.status))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [users, filters]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -435,18 +507,196 @@ function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-gray-900">User Management</h2>
-        <button
-          onClick={() => setShowAddUserForm(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Users className="w-5 h-5" />
-          Add New User
-        </button>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-gray-900">User Records</h2>
+          <p className="text-gray-500 text-sm">
+            Manage users, roles, and export auditable reports.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-5 h-5" />
+            Download PDF Report
+          </button>
+          <button
+            onClick={() => setShowAddUserForm(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Users className="w-5 h-5" />
+            Add New User
+          </button>
+        </div>
       </div>
 
-      {/* Add User Form Modal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Total users</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">Across all roles</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Active</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-xs text-green-600 mt-1">Eligible to log in</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Inactive</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.inactive}</div>
+          <div className="text-xs text-amber-600 mt-1">Require review</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Created this month</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.createdThisMonth}</div>
+          <div className="text-xs text-gray-500 mt-1">Newly provisioned</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 w-full md:w-1/2">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              placeholder="Search by name, email, role, department"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select
+              value={filters.role}
+              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value as RoleFilter }))}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              {roleOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r === "all" ? "All roles" : r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <ShieldCheck className="w-4 h-4 text-gray-400" />
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as StatusFilter }))}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 text-gray-700">Name</th>
+                <th className="text-left py-3 px-4 text-gray-700">Role</th>
+                <th className="text-left py-3 px-4 text-gray-700">Department</th>
+                <th className="text-left py-3 px-4 text-gray-700">Email</th>
+                <th className="text-left py-3 px-4 text-gray-700">Status</th>
+                <th className="text-left py-3 px-4 text-gray-700">Last active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((userRow) => (
+                <tr key={userRow.id} className="border-t border-gray-200">
+                  <td className="py-3 px-4 text-gray-900 font-medium">{userRow.name}</td>
+                  <td className="py-3 px-4">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                      {userRow.role}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">{userRow.department}</td>
+                  <td className="py-3 px-4 text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      {userRow.email}
+                    </div>
+                    {userRow.phone && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                        <Phone className="w-3 h-3" />
+                        {userRow.phone}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">{renderStatusPill(userRow.status)}</td>
+                  <td className="py-3 px-4 text-gray-600">{formatDate(userRow.lastActive)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div
+        ref={reportRef}
+        style={{ position: "absolute", left: "-9999px", top: 0 }}
+        aria-hidden
+      >
+        <h1>User Records Report</h1>
+        <div className="summary">
+          <div className="card">
+            <p className="muted">Total users</p>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Active</p>
+            <strong>{stats.active}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Inactive</p>
+            <strong>{stats.inactive}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Created this month</p>
+            <strong>{stats.createdThisMonth}</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Department</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Last active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name}</td>
+                <td>{u.role}</td>
+                <td>{u.department}</td>
+                <td>{u.email}</td>
+                <td>
+                  <span className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}>
+                    {u.status}
+                  </span>
+                </td>
+                <td>{formatDate(u.lastActive)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {showAddUserForm && (
         <div
           onClick={() => setShowAddUserForm(false)}
@@ -568,8 +818,299 @@ function UserManagement() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* User Table */}
+type PatientStatus = "Active" | "Follow-up" | "Discharged";
+type PatientRisk = "High" | "Medium" | "Low";
+
+interface PatientRow {
+  id: string;
+  name: string;
+  age: number;
+  gender: string;
+  bloodType: string;
+  phone: string;
+  email: string;
+  address: string;
+  status: PatientStatus;
+  risk: PatientRisk;
+  lastVisit: string;
+  primaryCondition: string;
+  allergies?: string;
+}
+
+function PatientRecordsAdmin() {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>(
+    "all",
+  );
+  const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const [patients] = useState<PatientRow[]>([
+    {
+      id: "P-2026-001",
+      name: "Alemayehu Girma",
+      age: 45,
+      gender: "Male",
+      bloodType: "O+",
+      phone: "+251 911 200 001",
+      email: "alemayehu.g@example.com",
+      address: "Bole, Addis Ababa",
+      status: "Active",
+      risk: "High",
+      lastVisit: "2026-01-12",
+      primaryCondition: "Type 2 Diabetes",
+      allergies: "Penicillin",
+    },
+    {
+      id: "P-2026-002",
+      name: "Sara Mohammed",
+      age: 28,
+      gender: "Female",
+      bloodType: "A+",
+      phone: "+251 911 200 002",
+      email: "sara.m@example.com",
+      address: "Kirkos, Addis Ababa",
+      status: "Active",
+      risk: "Medium",
+      lastVisit: "2026-01-08",
+      primaryCondition: "Asthma",
+      allergies: "None",
+    },
+    {
+      id: "P-2026-003",
+      name: "Daniel Bekele",
+      age: 62,
+      gender: "Male",
+      bloodType: "B+",
+      phone: "+251 911 200 003",
+      email: "daniel.b@example.com",
+      address: "Yeka, Addis Ababa",
+      status: "Follow-up",
+      risk: "High",
+      lastVisit: "2026-01-05",
+      primaryCondition: "Coronary Artery Disease",
+      allergies: "Sulfa drugs",
+    },
+    {
+      id: "P-2026-004",
+      name: "Hana Tesfaye",
+      age: 33,
+      gender: "Female",
+      bloodType: "AB+",
+      phone: "+251 911 200 004",
+      email: "hana.t@example.com",
+      address: "Lideta, Addis Ababa",
+      status: "Active",
+      risk: "Low",
+      lastVisit: "2026-01-15",
+      primaryCondition: "Routine Check-up",
+      allergies: "None",
+    },
+    {
+      id: "P-2026-005",
+      name: "Mulu Habte",
+      age: 54,
+      gender: "Female",
+      bloodType: "O-",
+      phone: "+251 911 200 005",
+      email: "mulu.h@example.com",
+      address: "Arada, Addis Ababa",
+      status: "Discharged",
+      risk: "Medium",
+      lastVisit: "2026-01-02",
+      primaryCondition: "Post-surgery follow-up",
+      allergies: "Latex",
+    },
+  ]);
+
+  const stats = useMemo(() => {
+    const total = patients.length;
+    const active = patients.filter((p) => p.status === "Active").length;
+    const followUp = patients.filter((p) => p.status === "Follow-up").length;
+    const highRisk = patients.filter((p) => p.risk === "High").length;
+    return { total, active, followUp, highRisk };
+  }, [patients]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return patients
+      .filter((p) =>
+        [p.name, p.email, p.id, p.primaryCondition]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+      )
+      .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
+      .filter((p) => (riskFilter === "all" ? true : p.risk === riskFilter))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [patients, search, statusFilter, riskFilter]);
+
+  const formatDate = (iso: string) => {
+    let date: Date;
+
+    // Treat date-only strings (YYYY-MM-DD) as local dates to avoid UTC offset issues
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const [yearStr, monthStr, dayStr] = iso.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(iso);
+    }
+
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
+    const base = "px-3 py-1 rounded-full text-xs font-medium";
+    const map = {
+      blue: "bg-blue-100 text-blue-700",
+      amber: "bg-amber-100 text-amber-800",
+      red: "bg-red-100 text-red-700",
+      green: "bg-green-100 text-green-700",
+    } as const;
+    return <span className={`${base} ${map[tone]}`}>{label}</span>;
+  };
+
+  const handleDownloadPdf = () => {
+    if (!reportRef.current) return;
+
+    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
+    if (!popup) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+
+    // Set the document title
+    popup.document.title = "Patient Records Report";
+
+    // Inject styles using DOM APIs instead of raw HTML
+    const styleElement = popup.document.createElement("style");
+    styleElement.textContent = `
+      body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+      h1 { margin: 0 0 12px 0; }
+      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+      .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+      .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+      th { background: #f1f5f9; }
+      .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+      .pill-high { background: #fee2e2; color: #b91c1c; }
+      .pill-medium { background: #fef3c7; color: #b45309; }
+      .pill-low { background: #e0f2fe; color: #0c4a6e; }
+      .pill-status { background: #e2e8f0; color: #0f172a; }
+    `;
+    popup.document.head.appendChild(styleElement);
+
+    // Clone the existing report content into the popup safely
+    const container = popup.document.createElement("div");
+    const clonedReport = popup.document.importNode
+      ? popup.document.importNode(reportRef.current, true)
+      : (reportRef.current.cloneNode(true) as HTMLElement);
+    container.appendChild(clonedReport);
+    popup.document.body.appendChild(container);
+    popup.focus();
+    popup.print();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-gray-900">Patient Records</h2>
+          <p className="text-gray-500 text-sm">
+            Track patient profiles, risk, follow-ups, and export an auditable PDF snapshot.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-5 h-5" />
+            Print / Save PDF Report
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Total patients</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">Across all statuses</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Active</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-xs text-green-600 mt-1">Currently under care</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Follow-ups due</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.followUp}</div>
+          <div className="text-xs text-blue-600 mt-1">Need scheduling</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">High-risk</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.highRisk}</div>
+          <div className="text-xs text-red-600 mt-1">Monitor closely</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 w-full md:w-1/2">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, ID, email, or condition"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | PatientStatus)}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Follow-up">Follow-up</option>
+              <option value="Discharged">Discharged</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <ShieldCheck className="w-4 h-4 text-gray-400" />
+            <select
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value as "all" | PatientRisk)}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All risk levels</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {formError && (
           <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
@@ -584,11 +1125,13 @@ function UserManagement() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left py-4 px-6 text-gray-700">Name</th>
-              <th className="text-left py-4 px-6 text-gray-700">Role</th>
-              <th className="text-left py-4 px-6 text-gray-700">Email</th>
-              <th className="text-left py-4 px-6 text-gray-700">Status</th>
-              <th className="text-left py-4 px-6 text-gray-700">Actions</th>
+              <th>Patient ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Risk</th>
+              <th>Condition</th>
+              <th>Last visit</th>
+              <th>Contact</th>
             </tr>
           </thead>
           <tbody>
@@ -615,19 +1158,14 @@ function UserManagement() {
                       userRow.role}
                   </span>
                 </td>
-                <td className="py-4 px-6 text-gray-600">{userRow.email}</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                    {userRow.status}
-                  </span>
+                <td className="pill pill-status">{p.status}</td>
+                <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>
+                  {p.risk}
                 </td>
-                <td className="py-4 px-6">
-                  <button className="text-blue-600 hover:text-blue-700 mr-4">
-                    Edit
-                  </button>
-                  <button className="text-red-600 hover:text-red-700">
-                    Deactivate
-                  </button>
+                <td>{p.primaryCondition}</td>
+                <td>{formatDate(p.lastVisit)}</td>
+                <td>
+                  {p.email} | {p.phone}
                 </td>
               </tr>
             ))}
