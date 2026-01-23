@@ -13,7 +13,7 @@ function getStorage() {
   }
 }
 
-function setStorage(v: any) {
+function setStorage(v: unknown) {
   localStorage.setItem('hl_session', JSON.stringify(v));
 }
 
@@ -65,7 +65,7 @@ export async function getAppointments(params: { patientId?: string; doctorId?: s
   return res.json();
 }
 
-export async function createAppointment(payload: any) {
+export async function createAppointment(payload: Record<string, unknown>) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/appointments`, {
     method: 'POST',
@@ -84,7 +84,7 @@ export async function getPatients(q = '') {
   return res.json();
 }
 
-export async function createPatient(payload: any) {
+export async function createPatient(payload: Record<string, unknown>) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/patients`, {
     method: 'POST',
@@ -95,7 +95,7 @@ export async function createPatient(payload: any) {
   return res.json();
 }
 
-export async function updatePatient(id: string, payload: any) {
+export async function updatePatient(id: string, payload: Record<string, unknown>) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/patients/${id}`, {
     method: 'PUT',
@@ -137,6 +137,46 @@ export async function getPrescriptions(params: { patientId?: string; doctorId?: 
   return res.json();
 }
 
+export async function createPrescription(payload: Record<string, unknown>) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/prescriptions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function updateAppointment(id: string, payload: Record<string, unknown>) {
+  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
+  const res = await fetch(`${BASE}/appointments/${id}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function deleteAppointment(id: string) {
+  const headers = getAuthHeaders();
+  const res = await fetch(`${BASE}/appointments/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function getDoctors(q = '') {
+  const url = new URL(`${BASE}/doctors`);
+  if (q) url.searchParams.set('q', q);
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export async function createUser(payload: { name: string; email: string; password: string; role: string }) {
   const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() } as Record<string,string>;
   const res = await fetch(`${BASE}/users`, {
@@ -160,5 +200,9 @@ export default {
   getAuditLogs,
   getUsers,
   getPrescriptions,
+  createPrescription,
+  updateAppointment,
+  deleteAppointment,
+  getDoctors,
   createUser,
 };

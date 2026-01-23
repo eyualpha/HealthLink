@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
-import { createUser, getUsers, getAuditLogs } from "../lib/api";
+import { createUser, getUsers, getAuditLogs, getPatients } from "../lib/api";
 
 interface AdminDashboardProps {
   user: User;
@@ -67,18 +67,19 @@ export function AdminDashboard({
         action: f.action === "all" ? undefined : f.action,
       });
 
+      const items = Array.isArray(data.items) ? data.items : [];
       setAuditEvents(
-        (data.items || []).map(
-          (x: any): AuditLogEntry => ({
-            id: x.id,
-            timestamp: x.timestamp,
-            userName: x.userName,
-            userRole: x.userRole,
-            action: x.action,
-            entityType: x.entityType,
-            entityId: x.entityId,
-            description: x.description,
-            ipAddress: x.ipAddress,
+        items.map(
+          (x: Record<string, unknown>): AuditLogEntry => ({
+            id: (x.id as string) || "",
+            timestamp: x.timestamp as string,
+            userName: (x.userName as string) || "",
+            userRole: x.userRole as string,
+            action: x.action as AuditEventType,
+            entityType: x.entityType as string,
+            entityId: x.entityId as string,
+            description: x.description as string,
+            ipAddress: x.ipAddress as string,
           }),
         ),
       );
@@ -371,7 +372,7 @@ function UserManagement() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [filters, setFilters] = useState<{
@@ -538,19 +539,20 @@ function UserManagement() {
         });
         setShowAddUserForm(false);
       })
-      .catch(async (err: any) => {
-        try {
-          const text = await err.text();
-          setFormError(text || "Failed to create user.");
-        } catch {
-          setFormError("Failed to create user.");
+      .catch(async (err: unknown) => {
+        if (err instanceof Response) {
+          try {
+            const text = await err.text();
+            setFormError(text || "Failed to create user.");
+            return;
+          } catch {}
         }
+        setFormError("Failed to create user.");
       })
       .finally(() => setSubmitting(false));
   };
 
   useEffect(() => {
-    setLoadingUsers(true);
     getUsers()
       .then((data) => {
         const list = Array.isArray(data)
@@ -559,31 +561,39 @@ function UserManagement() {
             ? data.items
             : [];
         setUsers(
-          list.map((u: any) => ({
-            id: u.id || u._id || u.email,
-            name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim(),
-            email: u.email,
-            role: u.role || "doctor",
+          list.map((u: Record<string, unknown>) => ({
+            id: (u.id as string) || (u._id as string) || (u.email as string),
+            name:
+              (u.name as string) ||
+              `${(u.firstName as string) || ""} ${(u.lastName as string) || ""}`.trim(),
+            email: u.email as string,
+            role: (u.role as string) || "doctor",
             status: u.active === false ? "Inactive" : "Active",
-            department: u.department || u.specialty || "General",
-            phone: u.phone || u.phoneNumber || "",
-            createdAt: u.createdAt || u.created_at || new Date().toISOString(),
+            department:
+              (u.department as string) || (u.specialty as string) || "General",
+            phone: (u.phone as string) || (u.phoneNumber as string) || "",
+            createdAt:
+              (u.createdAt as string) ||
+              (u.created_at as string) ||
+              new Date().toISOString(),
             lastActive:
-              u.lastActive ||
-              u.last_active ||
-              u.updatedAt ||
-              u.createdAt ||
+              (u.lastActive as string) ||
+              (u.last_active as string) ||
+              (u.updatedAt as string) ||
+              (u.createdAt as string) ||
               new Date().toISOString(),
           })),
         );
       })
-      .catch(async (err: any) => {
-        try {
-          const text = await err.text();
-          setFormError(text || "Failed to load users.");
-        } catch {
-          setFormError("Failed to load users.");
+      .catch(async (err: unknown) => {
+        if (err instanceof Response) {
+          try {
+            const text = await err.text();
+            setFormError(text || "Failed to load users.");
+            return;
+          } catch {}
         }
+        setFormError("Failed to load users.");
       })
       .finally(() => setLoadingUsers(false));
   }, []);
@@ -991,84 +1001,44 @@ function PatientRecordsAdmin() {
   );
   const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
   const reportRef = useRef<HTMLDivElement>(null);
+  const [patients, setPatients] = useState<PatientRow[]>([]);
 
-  const [patients] = useState<PatientRow[]>([
-    {
-      id: "P-2026-001",
-      name: "Alemayehu Girma",
-      age: 45,
-      gender: "Male",
-      bloodType: "O+",
-      phone: "+251 911 200 001",
-      email: "alemayehu.g@example.com",
-      address: "Bole, Addis Ababa",
-      status: "Active",
-      risk: "High",
-      lastVisit: "2026-01-12",
-      primaryCondition: "Type 2 Diabetes",
-      allergies: "Penicillin",
-    },
-    {
-      id: "P-2026-002",
-      name: "Sara Mohammed",
-      age: 28,
-      gender: "Female",
-      bloodType: "A+",
-      phone: "+251 911 200 002",
-      email: "sara.m@example.com",
-      address: "Kirkos, Addis Ababa",
-      status: "Active",
-      risk: "Medium",
-      lastVisit: "2026-01-08",
-      primaryCondition: "Asthma",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-003",
-      name: "Daniel Bekele",
-      age: 62,
-      gender: "Male",
-      bloodType: "B+",
-      phone: "+251 911 200 003",
-      email: "daniel.b@example.com",
-      address: "Yeka, Addis Ababa",
-      status: "Follow-up",
-      risk: "High",
-      lastVisit: "2026-01-05",
-      primaryCondition: "Coronary Artery Disease",
-      allergies: "Sulfa drugs",
-    },
-    {
-      id: "P-2026-004",
-      name: "Hana Tesfaye",
-      age: 33,
-      gender: "Female",
-      bloodType: "AB+",
-      phone: "+251 911 200 004",
-      email: "hana.t@example.com",
-      address: "Lideta, Addis Ababa",
-      status: "Active",
-      risk: "Low",
-      lastVisit: "2026-01-15",
-      primaryCondition: "Routine Check-up",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-005",
-      name: "Mulu Habte",
-      age: 54,
-      gender: "Female",
-      bloodType: "O-",
-      phone: "+251 911 200 005",
-      email: "mulu.h@example.com",
-      address: "Arada, Addis Ababa",
-      status: "Discharged",
-      risk: "Medium",
-      lastVisit: "2026-01-02",
-      primaryCondition: "Post-surgery follow-up",
-      allergies: "Latex",
-    },
-  ]);
+  useEffect(() => {
+    getPatients()
+      .then((res) => {
+        const items = res.items || res;
+        setPatients(
+          (items || []).map(
+            (p: Record<string, unknown>): PatientRow => ({
+              id: (p._id as string) || (p.id as string) || "",
+              name: (p.name as string) || "",
+              age: p.dob
+                ? Math.max(
+                    0,
+                    new Date().getFullYear() -
+                      new Date(p.dob as string).getFullYear(),
+                  )
+                : 0,
+              gender: (p.gender as string) || "",
+              bloodType: (p.bloodType as string) || "",
+              phone: (p.contact as { phone?: string } | undefined)?.phone || "",
+              email: (p.contact as { email?: string } | undefined)?.email || "",
+              address: (p.address as string) || "",
+              status: "Active",
+              risk: "Low",
+              lastVisit: (p.updatedAt as string)?.slice(0, 10) || "",
+              primaryCondition:
+                (p.medicalHistory as string[] | undefined)?.[0] || "",
+              allergies:
+                ((p.allergies as string[] | undefined) || []).join(", ") || "",
+            }),
+          ),
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load patients", err);
+      });
+  }, []);
 
   const stats = useMemo(() => {
     const total = patients.length;
