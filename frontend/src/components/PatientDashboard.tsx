@@ -1,28 +1,67 @@
-import { useState } from 'react';
-import type { User } from '../types';
-import { DashboardLayout } from './DashboardLayout';
-import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'lucide-react';
-import BookAppointmentModal from './BookAppointmentModal';
-import EditableProfileModal from './EditableProfileModal';
-import type { AppointmentForm } from './BookAppointmentModal';
+import { useState, useEffect } from "react";
+import type { User } from "../types";
+import { DashboardLayout } from "./DashboardLayout";
+import {
+  FileText,
+  Calendar,
+  Pill,
+  User as UserIcon,
+  Activity,
+  Syringe,
+} from "lucide-react";
+import BookAppointmentModal, {
+  type AppointmentForm,
+} from "./BookAppointmentModal";
+import EditableProfileModal from "./EditableProfileModal";
+
+type PatientView = "overview" | "records" | "appointments" | "prescriptions";
 
 interface PatientDashboardProps {
   user: User;
   onLogout: () => void;
+  onShowNotifications: () => void;
 }
 
-type PatientView = 'overview' | 'records' | 'appointments' | 'prescriptions';
-
-export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
-  const [activeView, setActiveView] = useState<PatientView>('overview');
+export function PatientDashboard({
+  user,
+  onLogout,
+  onShowNotifications,
+}: PatientDashboardProps) {
+  const [activeView, setActiveView] = useState<PatientView>("overview");
   const [localUser, setLocalUser] = useState<User>(user);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [appointments, setAppointments] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load my appointments from API if available
+    import("../lib/api")
+      .then((m) => {
+        return m.getMyAppointments();
+      })
+      .then((data: any) => {
+        if (Array.isArray(data)) setAppointments(data);
+        else if (data?.items) setAppointments(data.items);
+      })
+      .catch(() => {});
+  }, []);
 
   const menuItems = [
-    { id: 'overview' as PatientView, label: 'Overview', icon: Activity },
-    { id: 'records' as PatientView, label: 'My Health Records', icon: FileText },
-    { id: 'appointments' as PatientView, label: 'My Appointments', icon: Calendar },
-    { id: 'prescriptions' as PatientView, label: 'My Prescriptions', icon: Pill },
+    { id: "overview" as PatientView, label: "Overview", icon: Activity },
+    {
+      id: "records" as PatientView,
+      label: "My Health Records",
+      icon: FileText,
+    },
+    {
+      id: "appointments" as PatientView,
+      label: "My Appointments",
+      icon: Calendar,
+    },
+    {
+      id: "prescriptions" as PatientView,
+      label: "My Prescriptions",
+      icon: Pill,
+    },
   ];
 
   return (
@@ -33,11 +72,25 @@ export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as PatientView)}
       onEditProfile={() => setShowProfileModal(true)}
+      onShowNotifications={onShowNotifications}
     >
-      {activeView === 'overview' && <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />}
-      {activeView === 'records' && <MyHealthRecords />}
-      {activeView === 'appointments' && <MyAppointments />}
-      {activeView === 'prescriptions' && <MyPrescriptions />}
+      {activeView === "overview" && (
+        <PatientOverview
+          user={localUser}
+          onEditProfile={() => setShowProfileModal(true)}
+        />
+      )}
+
+      {activeView === "records" && <MyHealthRecords />}
+
+      {activeView === "appointments" && (
+        <MyAppointments
+          appointments={appointments}
+          onBooked={(a) => setAppointments((prev) => [...prev, a])}
+        />
+      )}
+
+      {activeView === "prescriptions" && <MyPrescriptions />}
 
       {showProfileModal && (
         <EditableProfileModal
@@ -54,13 +107,27 @@ export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
   );
 }
 
-function PatientOverview({ user, onEditProfile }: { user: User; onEditProfile: () => void }) {
+function PatientOverview({
+  user,
+  onEditProfile,
+}: {
+  user: User;
+  onEditProfile: () => void;
+}) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-gray-900">My Health Dashboard</h2>
-          <div className="text-sm text-gray-600">Welcome, <button onClick={onEditProfile} className="font-medium text-blue-600 hover:underline">{user.name}</button></div>
+          <div className="text-sm text-gray-600">
+            Welcome,{" "}
+            <button
+              onClick={onEditProfile}
+              className="font-medium text-blue-600 hover:underline"
+            >
+              {user.name}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -106,7 +173,9 @@ function PatientOverview({ user, onEditProfile }: { user: User; onEditProfile: (
               </div>
               <div>
                 <div className="text-gray-900">Dr. Abebe Kebede</div>
-                <div className="text-gray-500 text-sm">Follow-up Consultation</div>
+                <div className="text-gray-500 text-sm">
+                  Follow-up Consultation
+                </div>
               </div>
             </div>
             <div className="text-right">
@@ -142,11 +211,15 @@ function PatientOverview({ user, onEditProfile }: { user: User; onEditProfile: (
           <div className="space-y-3">
             <div className="p-3 bg-purple-50 rounded-lg">
               <div className="text-gray-900 mb-1">Metformin 500mg</div>
-              <div className="text-gray-600 text-sm">Twice daily with meals</div>
+              <div className="text-gray-600 text-sm">
+                Twice daily with meals
+              </div>
             </div>
             <div className="p-3 bg-purple-50 rounded-lg">
               <div className="text-gray-900 mb-1">Lisinopril 10mg</div>
-              <div className="text-gray-600 text-sm">Once daily in the morning</div>
+              <div className="text-gray-600 text-sm">
+                Once daily in the morning
+              </div>
             </div>
           </div>
         </div>
@@ -215,14 +288,18 @@ function MyHealthRecords() {
               <div className="text-gray-900">Type 2 Diabetes</div>
               <div className="text-gray-500 text-sm">Diagnosed: Jan 2021</div>
             </div>
-            <div className="text-gray-600 text-sm">Managing with medication and lifestyle changes</div>
+            <div className="text-gray-600 text-sm">
+              Managing with medication and lifestyle changes
+            </div>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg">
             <div className="flex items-start justify-between mb-2">
               <div className="text-gray-900">Hypertension</div>
               <div className="text-gray-500 text-sm">Diagnosed: Jun 2019</div>
             </div>
-            <div className="text-gray-600 text-sm">Controlled with medication</div>
+            <div className="text-gray-600 text-sm">
+              Controlled with medication
+            </div>
           </div>
         </div>
       </div>
@@ -237,7 +314,9 @@ function MyHealthRecords() {
                 <div className="text-gray-700 mt-1">Result: 7.2%</div>
               </div>
               <div className="text-right">
-                <div className="text-gray-500 text-sm mb-1">Jan 10, 2024</div>
+                <div className="text-gray-500 text-sm mb-1">
+                  Jan 10, 2024
+                </div>
                 <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
                   Elevated
                 </span>
@@ -251,7 +330,9 @@ function MyHealthRecords() {
                 <div className="text-gray-700 mt-1">Result: 130/85 mmHg</div>
               </div>
               <div className="text-right">
-                <div className="text-gray-500 text-sm mb-1">Jan 10, 2024</div>
+                <div className="text-gray-500 text-sm mb-1">
+                  Jan 10, 2024
+                </div>
                 <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
                   Normal
                 </span>
@@ -264,20 +345,56 @@ function MyHealthRecords() {
   );
 }
 
-function MyAppointments() {
+function MyAppointments({
+  appointments = [],
+  onBooked,
+}: {
+  appointments?: any[];
+  onBooked?: (a: any) => void;
+}) {
   const [showBookModal, setShowBookModal] = useState(false);
 
-  const handleBookingSubmit = (data: AppointmentForm) => {
-    // TODO: send booking to backend
-    console.log('Booked appointment:', data);
-    setShowBookModal(false);
+  const handleBookingSubmit = async (data: AppointmentForm) => {
+    try {
+      const api = await import("../lib/api");
+      const session = api.getSession();
+
+      const payload: any = {
+        patientId: session?.user?.id,
+        doctorId: undefined, // TODO: supply real doctorId
+        appointementDate: data.date,
+        appointementTime: data.time,
+        appointementType: data.type,
+        notes: data.reason,
+        status: "scheduled",
+      };
+
+      const created = await api.createAppointment(payload);
+      onBooked?.(created);
+    } catch (err) {
+      const local = {
+        _id: `local-${Date.now()}`,
+        doctor: data.doctor,
+        appointementType: data.type,
+        appointementDate: data.date,
+        appointementTime: data.time,
+        notes: data.reason,
+        status: "scheduled",
+      };
+      onBooked?.(local);
+    } finally {
+      setShowBookModal(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">My Appointments</h2>
-        <button onClick={() => setShowBookModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={() => setShowBookModal(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Calendar className="w-5 h-5" />
           Book Appointment
         </button>
@@ -286,40 +403,88 @@ function MyAppointments() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-gray-900 mb-4">Upcoming</h3>
         <div className="space-y-3">
-          {[
-            {
-              doctor: 'Dr. Abebe Kebede',
-              type: 'Follow-up Consultation',
-              date: 'Jan 16, 2024',
-              time: '09:30 AM',
-              location: 'Room 201',
-            },
-            {
-              doctor: 'Dr. Solomon Tesfaye',
-              type: 'Annual Check-up',
-              date: 'Jan 22, 2024',
-              time: '02:00 PM',
-              location: 'Room 105',
-            },
-          ].map((apt, idx) => (
-            <div key={idx} className="border border-gray-200 rounded-lg p-4">
+          {appointments.map((apt) => (
+            <div
+              key={
+                apt._id ??
+                `${apt.doctor}-${apt.appointementDate}-${apt.appointementTime}`
+              }
+              className="border border-gray-200 rounded-lg p-4"
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-gray-900 mb-1">{apt.doctor}</div>
-                  <div className="text-gray-600 text-sm mb-2">{apt.type}</div>
+                  <div className="text-gray-900 mb-1">
+                    {apt.doctor?.name ?? apt.doctor ?? "Unknown doctor"}
+                  </div>
+                  <div className="text-gray-600 text-sm mb-2">
+                    {apt.appointementType}
+                  </div>
                   <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <div>{apt.date}</div>
-                    <div>{apt.time}</div>
-                    <div>{apt.location}</div>
+                    <div>{apt.appointementDate}</div>
+                    <div>{apt.appointementTime}</div>
+                    <div>{apt.location ?? "Clinic"}</div>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-blue-600 hover:text-blue-700 text-sm">Reschedule</button>
-                  <button className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                  <button className="text-blue-600 hover:text-blue-700 text-sm">
+                    Reschedule
+                  </button>
+                  <button className="text-red-600 hover:text-red-700 text-sm">
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+
+          {/* demo static appointments (optional) */}
+          {appointments.length === 0 && (
+            <>
+              {[
+                {
+                  doctor: "Dr. Abebe Kebede",
+                  appointementType: "Follow-up Consultation",
+                  appointementDate: "Jan 16, 2024",
+                  appointementTime: "09:30 AM",
+                  location: "Room 201",
+                },
+                {
+                  doctor: "Dr. Solomon Tesfaye",
+                  appointementType: "Annual Check-up",
+                  appointementDate: "Jan 22, 2024",
+                  appointementTime: "02:00 PM",
+                  location: "Room 105",
+                },
+              ].map((apt, idx) => (
+                <div
+                  key={idx}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="text-gray-900 mb-1">{apt.doctor}</div>
+                      <div className="text-gray-600 text-sm mb-2">
+                        {apt.appointementType}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <div>{apt.appointementDate}</div>
+                        <div>{apt.appointementTime}</div>
+                        <div>{apt.location}</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="text-blue-600 hover:text-blue-700 text-sm">
+                        Reschedule
+                      </button>
+                      <button className="text-red-600 hover:text-red-700 text-sm">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -330,16 +495,25 @@ function MyAppointments() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="text-gray-900">Dr. Abebe Kebede</div>
-                <div className="text-gray-600 text-sm">Diabetes Check-up</div>
+                <div className="text-gray-600 text-sm">
+                  Diabetes Check-up
+                </div>
               </div>
               <div className="text-gray-500 text-sm">Dec 15, 2023</div>
             </div>
-            <button className="text-blue-600 hover:text-blue-700 text-sm">View Summary</button>
+            <button className="text-blue-600 hover:text-blue-700 text-sm">
+              View Summary
+            </button>
           </div>
         </div>
       </div>
+
       {showBookModal && (
-        <BookAppointmentModal open={showBookModal} onClose={() => setShowBookModal(false)} onSubmit={handleBookingSubmit} />
+        <BookAppointmentModal
+          open={showBookModal}
+          onClose={() => setShowBookModal(false)}
+          onSubmit={handleBookingSubmit}
+        />
       )}
     </div>
   );
@@ -355,20 +529,20 @@ function MyPrescriptions() {
         <div className="space-y-4">
           {[
             {
-              medication: 'Metformin',
-              dosage: '500mg',
-              frequency: 'Twice daily',
-              instructions: 'Take with meals',
-              prescribed: 'Jan 15, 2024',
-              refills: '2 remaining',
+              medication: "Metformin",
+              dosage: "500mg",
+              frequency: "Twice daily",
+              instructions: "Take with meals",
+              prescribed: "Jan 15, 2024",
+              refills: "2 remaining",
             },
             {
-              medication: 'Lisinopril',
-              dosage: '10mg',
-              frequency: 'Once daily',
-              instructions: 'Take in the morning',
-              prescribed: 'Jun 20, 2023',
-              refills: '1 remaining',
+              medication: "Lisinopril",
+              dosage: "10mg",
+              frequency: "Once daily",
+              instructions: "Take in the morning",
+              prescribed: "Jun 20, 2023",
+              refills: "1 remaining",
             },
           ].map((rx, idx) => (
             <div key={idx} className="border border-gray-200 rounded-lg p-4">
@@ -378,7 +552,9 @@ function MyPrescriptions() {
                     <Pill className="w-6 h-6 text-purple-600" />
                   </div>
                   <div className="flex-1">
-                    <div className="text-gray-900 mb-1">{rx.medication}</div>
+                    <div className="text-gray-900 mb-1">
+                      {rx.medication}
+                    </div>
                     <div className="grid grid-cols-2 gap-4 text-sm mt-3">
                       <div>
                         <div className="text-gray-500">Dosage</div>
@@ -390,7 +566,9 @@ function MyPrescriptions() {
                       </div>
                       <div>
                         <div className="text-gray-500">Instructions</div>
-                        <div className="text-gray-700">{rx.instructions}</div>
+                        <div className="text-gray-700">
+                          {rx.instructions}
+                        </div>
                       </div>
                       <div>
                         <div className="text-gray-500">Refills</div>
@@ -403,12 +581,18 @@ function MyPrescriptions() {
                   <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm mb-2 inline-block">
                     Active
                   </span>
-                  <div className="text-gray-500 text-sm">Prescribed: {rx.prescribed}</div>
+                  <div className="text-gray-500 text-sm">
+                    Prescribed: {rx.prescribed}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-3 border-t border-gray-200">
-                <button className="text-blue-600 hover:text-blue-700 text-sm">Request Refill</button>
-                <button className="text-gray-600 hover:text-gray-700 text-sm">View Details</button>
+                <button className="text-blue-600 hover:text-blue-700 text-sm">
+                  Request Refill
+                </button>
+                <button className="text-gray-600 hover:text-gray-700 text-sm">
+                  View Details
+                </button>
               </div>
             </div>
           ))}
