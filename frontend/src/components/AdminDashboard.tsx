@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
 import {
@@ -9,15 +9,23 @@ import {
   TrendingUp,
   Clock,
   X,
+  Download,
+  Search,
+  ShieldCheck,
+  Filter,
+  Mail,
+  Phone,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
+import api from "../lib/api";
 
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
   onShowNotifications: () => void;
+  accessToken?: string;
   
   // accessToken: string; // 👈 add this so we can call the backend
 }
@@ -31,6 +39,8 @@ export function AdminDashboard({
   accessToken,
 }: AdminDashboardProps) {
   const [activeView, setActiveView] = useState<AdminView>("analytics");
+  const session = api.getSession();
+  const authToken = accessToken || session?.accessToken;
 
   // --- audit log state (for the Audit tab) ---
   const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
@@ -61,9 +71,11 @@ export function AdminDashboard({
           import.meta.env.VITE_API_URL || "http://localhost:5000"
         }/audit-logs?${params.toString()}`,
         {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+          headers: authToken
+            ? {
+                Authorization: `Bearer ${authToken}`,
+              }
+            : {},
         },
       );
 
@@ -328,12 +340,36 @@ function AnalyticsDashboard() {
   );
 }
 
+interface UserRecord {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  status: "Active" | "Inactive";
+  department: string;
+  phone?: string;
+  lastActive: string;
+  createdAt: string;
+}
+
 interface NewUserFormData {
   name: string;
   email: string;
   role: string;
-  phone?: string;
+  phone: string;
+  department: string;
 }
+
+type RoleFilter =
+  | "all"
+  | "Administrator"
+  | "Doctor"
+  | "Nurse"
+  | "Reception"
+  | "Clinician"
+  | "Patient";
+
+type StatusFilter = "all" | "Active" | "Inactive";
 
 function UserManagement() {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
@@ -342,38 +378,120 @@ function UserManagement() {
     email: "",
     role: "Doctor",
     phone: "",
+    department: "General",
   });
 
-  const users = [
+  const [users, setUsers] = useState<UserRecord[]>([
     {
-      id: 1,
-      name: "Dr. Abebe Kebede",
-      role: "Doctor",
-      email: "abebe.k@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Nurse Tigist Alemu",
-      role: "Nurse",
-      email: "tigist.a@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Dr. Solomon Tesfaye",
-      role: "Doctor",
-      email: "solomon.t@healthlink.et",
-      status: "Active",
-    },
-    {
-      id: 4,
+      id: "u-1",
       name: "Admin User",
       role: "Administrator",
-      email: "admin@healthlink.et",
+      email: "admin@localhost",
       status: "Active",
+      department: "Operations",
+      phone: "+251 911 000 001",
+      lastActive: "2026-01-17T08:10:00Z",
+      createdAt: "2026-01-05T07:00:00Z",
     },
+    {
+      id: "u-2",
+      name: "Dr. Abebe Kebede",
+      role: "Doctor",
+      email: "doctor@localhost",
+      status: "Active",
+      department: "Cardiology",
+      phone: "+251 911 000 002",
+      lastActive: "2026-01-17T11:00:00Z",
+      createdAt: "2026-01-07T08:00:00Z",
+    },
+    {
+      id: "u-3",
+      name: "Nurse Tigist Alemu",
+      role: "Nurse",
+      email: "nurse@localhost",
+      status: "Active",
+      department: "Outpatient",
+      phone: "+251 911 000 003",
+      lastActive: "2026-01-16T15:00:00Z",
+      createdAt: "2026-01-09T08:00:00Z",
+    },
+    {
+      id: "u-4",
+      name: "Reception User",
+      role: "Reception",
+      email: "reception@localhost",
+      status: "Active",
+      department: "Front Desk",
+      phone: "+251 911 000 004",
+      lastActive: "2026-01-15T13:00:00Z",
+      createdAt: "2026-01-10T08:00:00Z",
+    },
+    {
+      id: "u-5",
+      name: "Clinician User",
+      role: "Clinician",
+      email: "clinician@localhost",
+      status: "Active",
+      department: "Diagnostics",
+      phone: "+251 911 000 005",
+      lastActive: "2026-01-12T12:00:00Z",
+      createdAt: "2026-01-12T08:00:00Z",
+    },
+    {
+      id: "u-6",
+      name: "Patient Seeded",
+      role: "Patient",
+      email: "patient@localhost",
+      status: "Inactive",
+      department: "Patient",
+      phone: "+251 911 000 006",
+      lastActive: "2026-01-03T09:00:00Z",
+      createdAt: "2025-12-12T08:00:00Z",
+    },
+  ]);
+
+  const [filters, setFilters] = useState<{
+    search: string;
+    role: RoleFilter;
+    status: StatusFilter;
+  }>({ search: "", role: "all", status: "all" });
+
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const roleOptions: RoleFilter[] = [
+    "all",
+    "Administrator",
+    "Doctor",
+    "Nurse",
+    "Reception",
+    "Clinician",
+    "Patient",
   ];
+
+  const stats = useMemo(() => {
+    const active = users.filter((u) => u.status === "Active").length;
+    const inactive = users.length - active;
+    const now = new Date();
+    const createdThisMonth = users.filter((u) => {
+      const d = new Date(u.createdAt);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+    return { total: users.length, active, inactive, createdThisMonth };
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+    return users
+      .filter((u) =>
+        [u.name, u.email, u.role, u.department]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+      )
+      .filter((u) => (filters.role === "all" ? true : u.role === filters.role))
+      .filter((u) => (filters.status === "all" ? true : u.status === filters.status))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [users, filters]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -387,31 +505,272 @@ function UserManagement() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("New user data:", newUser);
-    setNewUser({
-      name: "",
-      email: "",
-      role: "Doctor",
-      phone: "",
-    });
+    const id = crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}`;
+    const now = new Date().toISOString();
+    const record: UserRecord = {
+      id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      status: "Active",
+      department: newUser.department || "General",
+      phone: newUser.phone,
+      lastActive: now,
+      createdAt: now,
+    };
+    setUsers((prev) => [record, ...prev]);
+    setNewUser({ name: "", email: "", role: "Doctor", phone: "", department: "General" });
     setShowAddUserForm(false);
     alert("User added successfully!");
   };
 
+  const handleDownloadPdf = () => {
+    if (!reportRef.current) return;
+    const printable = reportRef.current.innerHTML;
+    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
+    if (!popup) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+    popup.document.write(`
+      <html>
+        <head>
+          <title>User Records Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            h1 { margin: 0 0 12px 0; }
+            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; }
+            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+            .pill-active { background: #e0f2fe; color: #0369a1; }
+            .pill-inactive { background: #fef9c3; color: #854d0e; }
+          </style>
+        </head>
+        <body>
+          ${printable}
+        </body>
+      </html>
+    `);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
+
+  const renderStatusPill = (status: UserRecord["status"]) => (
+    <span
+      className={`px-3 py-1 rounded-full text-sm ${
+        status === "Active"
+          ? "bg-green-100 text-green-700"
+          : "bg-amber-100 text-amber-700"
+      }`}
+    >
+      {status}
+    </span>
+  );
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-gray-900">User Management</h2>
-        <button
-          onClick={() => setShowAddUserForm(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Users className="w-5 h-5" />
-          Add New User
-        </button>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-gray-900">User Records</h2>
+          <p className="text-gray-500 text-sm">
+            Manage users, roles, and export auditable reports.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-5 h-5" />
+            Download PDF Report
+          </button>
+          <button
+            onClick={() => setShowAddUserForm(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Users className="w-5 h-5" />
+            Add New User
+          </button>
+        </div>
       </div>
 
-      {/* Add User Form Modal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Total users</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">Across all roles</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Active</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-xs text-green-600 mt-1">Eligible to log in</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Inactive</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.inactive}</div>
+          <div className="text-xs text-amber-600 mt-1">Require review</div>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-gray-500 text-sm">Created this month</div>
+          <div className="text-2xl font-semibold text-gray-900">{stats.createdThisMonth}</div>
+          <div className="text-xs text-gray-500 mt-1">Newly provisioned</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 w-full md:w-1/2">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              placeholder="Search by name, email, role, department"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select
+              value={filters.role}
+              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value as RoleFilter }))}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              {roleOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r === "all" ? "All roles" : r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
+            <ShieldCheck className="w-4 h-4 text-gray-400" />
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as StatusFilter }))}
+              className="bg-transparent focus:outline-none text-gray-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left py-3 px-4 text-gray-700">Name</th>
+                <th className="text-left py-3 px-4 text-gray-700">Role</th>
+                <th className="text-left py-3 px-4 text-gray-700">Department</th>
+                <th className="text-left py-3 px-4 text-gray-700">Email</th>
+                <th className="text-left py-3 px-4 text-gray-700">Status</th>
+                <th className="text-left py-3 px-4 text-gray-700">Last active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((userRow) => (
+                <tr key={userRow.id} className="border-t border-gray-200">
+                  <td className="py-3 px-4 text-gray-900 font-medium">{userRow.name}</td>
+                  <td className="py-3 px-4">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                      {userRow.role}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">{userRow.department}</td>
+                  <td className="py-3 px-4 text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      {userRow.email}
+                    </div>
+                    {userRow.phone && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                        <Phone className="w-3 h-3" />
+                        {userRow.phone}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">{renderStatusPill(userRow.status)}</td>
+                  <td className="py-3 px-4 text-gray-600">{formatDate(userRow.lastActive)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div
+        ref={reportRef}
+        style={{ position: "absolute", left: "-9999px", top: 0 }}
+        aria-hidden
+      >
+        <h1>User Records Report</h1>
+        <div className="summary">
+          <div className="card">
+            <p className="muted">Total users</p>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Active</p>
+            <strong>{stats.active}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Inactive</p>
+            <strong>{stats.inactive}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Created this month</p>
+            <strong>{stats.createdThisMonth}</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Department</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Last active</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name}</td>
+                <td>{u.role}</td>
+                <td>{u.department}</td>
+                <td>{u.email}</td>
+                <td>
+                  <span className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}>
+                    {u.status}
+                  </span>
+                </td>
+                <td>{formatDate(u.lastActive)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {showAddUserForm && (
         <div
           onClick={() => setShowAddUserForm(false)}
@@ -464,22 +823,40 @@ function UserManagement() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role *
-                </label>
-                <select
-                  name="role"
-                  value={newUser.role}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                >
-                  <option value="Doctor">Doctor</option>
-                  <option value="Nurse">Nurse</option>
-                  <option value="Administrator">Administrator</option>
-                  <option value="Receptor">Receptor</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Role *
+                  </label>
+                  <select
+                    name="role"
+                    value={newUser.role}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  >
+                    <option value="Administrator">Administrator</option>
+                    <option value="Doctor">Doctor</option>
+                    <option value="Nurse">Nurse</option>
+                    <option value="Reception">Reception</option>
+                    <option value="Clinician">Clinician</option>
+                    <option value="Patient">Patient</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department
+                  </label>
+                  <input
+                    type="text"
+                    name="department"
+                    value={newUser.department}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="Cardiology, Ops, etc."
+                  />
+                </div>
               </div>
 
               <div>
@@ -515,47 +892,6 @@ function UserManagement() {
           </div>
         </div>
       )}
-
-      {/* User Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-left py-4 px-6 text-gray-700">Name</th>
-              <th className="text-left py-4 px-6 text-gray-700">Role</th>
-              <th className="text-left py-4 px-6 text-gray-700">Email</th>
-              <th className="text-left py-4 px-6 text-gray-700">Status</th>
-              <th className="text-left py-4 px-6 text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((userRow) => (
-              <tr key={userRow.id} className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {userRow.role}
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-gray-600">{userRow.email}</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                    {userRow.status}
-                  </span>
-                </td>
-                <td className="py-4 px-6">
-                  <button className="text-blue-600 hover:text-blue-700 mr-4">
-                    Edit
-                  </button>
-                  <button className="text-red-600 hover:text-red-700">
-                    Deactivate
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
