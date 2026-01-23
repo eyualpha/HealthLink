@@ -12,7 +12,7 @@ import appointmentRoutes from "./routes/appointments.js";
 import { authenticateJWT } from "./middleware/auth.js";
 import { Roles } from "./rbac.js";
 import { CORS_ORIGIN } from "./configs/env.config.js";
-
+import auditLogRoutes from "./routes/auditLogs.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -105,3 +105,8 @@ app.get("/secure/clinician", authenticateJWT, (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   res.json({ ok: true, role: req.user.role });
 });
+
+
+
+
+app.use("/audit-logs", auditLogRoutes);
