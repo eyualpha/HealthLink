@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
 import {
-  BarChart3,
   Users,
   Calendar,
   Activity,
@@ -15,14 +14,15 @@ import {
   Filter,
   Mail,
   Phone,
-  FileText,
   Stethoscope,
+  Plus,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
-import api from "../lib/api";
-
-import { createUser, getUsers, getAuditLogs } from "../lib/api";
+import api, { createUser, getUsers, getAuditLogs } from "../lib/api";
 
 interface AdminDashboardProps {
   user: User;
@@ -43,93 +43,126 @@ export function AdminDashboard({
   user,
   onLogout,
   onShowNotifications,
-  accessToken,
 }: AdminDashboardProps) {
+  const mockAuditEvents: AuditLogEntry[] = [
+    {
+      id: "mock-1",
+      timestamp: new Date().toISOString(),
+      userName: "Admin User",
+      userRole: "admin",
+      action: "update",
+      entityType: "User",
+      entityId: "DR-102",
+      description: "Updated Dr. Patel's profile and role",
+      ipAddress: "192.168.1.10",
+    },
+    {
+      id: "mock-2",
+      timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      userName: "Nurse Helen",
+      userRole: "nurse",
+      action: "create",
+      entityType: "Prescription",
+      entityId: "RX-2041",
+      description: "Added new prescription for patient P-8831",
+      ipAddress: "192.168.1.22",
+    },
+    {
+      id: "mock-3",
+      timestamp: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
+      userName: "Reception Desk",
+      userRole: "reception",
+      action: "create",
+      entityType: "Appointment",
+      entityId: "APT-331",
+      description: "Booked follow-up with Dr. Lee for P-5522",
+      ipAddress: "10.0.0.15",
+    },
+    {
+      id: "mock-4",
+      timestamp: new Date(Date.now() - 1000 * 60 * 75).toISOString(),
+      userName: "System",
+      userRole: "service",
+      action: "permission",
+      entityType: "Token",
+      entityId: "REF-901",
+      description: "Refreshed access token for admin session",
+      ipAddress: "10.0.0.1",
+    },
+  ];
+
   const [activeView, setActiveView] = useState<AdminView>("analytics");
-  const session = api.getSession();
-  const authToken = accessToken || session?.accessToken;
 
-  // --- audit log state (for the Audit tab) ---
-  const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
-  const [auditLoading, setAuditLoading] = useState(false);
+  // Audit log state (mocked for now)
+  const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>(mockAuditEvents);
+  const [auditTotal, setAuditTotal] = useState(mockAuditEvents.length);
   const [auditPage, setAuditPage] = useState(1);
-  const [auditPageSize] = useState(10);
-  const [auditTotal, setAuditTotal] = useState(0);
-  const [auditFilters, setAuditFilters] = useState<{
-    search: string;
-    action: AuditEventType | "all";
-  }>({ search: "", action: "all" });
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilters, setAuditFilters] = useState<{ search: string; action: AuditEventType | "all" }>(
+    { search: "", action: "all" },
+  );
 
-  async function fetchAuditLogs(
-    p: number = auditPage,
-    f: { search: string; action: AuditEventType | "all" } = auditFilters,
-  ) {
+  const AUDIT_PAGE_SIZE = 20;
+
+  const menuItems = [
+    { id: "analytics", label: "Overview", icon: TrendingUp },
+    { id: "users", label: "User Management", icon: Users },
+    { id: "patients", label: "Patient Records", icon: Stethoscope },
+    { id: "audit", label: "Audit Log", icon: ShieldCheck },
+    { id: "system", label: "System Health", icon: Activity },
+    { id: "reports", label: "Reports", icon: FileText },
+  ] satisfies { id: AdminView; label: string; icon: typeof Users }[];
+
+  const fetchAuditLogs = async (page = auditPage, filters = auditFilters) => {
     setAuditLoading(true);
     try {
       const data = await getAuditLogs({
-        page: p,
-        pageSize: auditPageSize,
-        search: f.search,
-        action: f.action === "all" ? undefined : f.action,
+        page,
+        pageSize: AUDIT_PAGE_SIZE,
+        search: filters.search,
+        action: filters.action === "all" ? undefined : filters.action,
       });
-
-      setAuditEvents(
-        (data.items || []).map(
-          (x: any): AuditLogEntry => ({
-            id: x.id,
-            timestamp: x.timestamp,
-            userName: x.userName,
-            userRole: x.userRole,
-            action: x.action,
-            entityType: x.entityType,
-            entityId: x.entityId,
-            description: x.description,
-            ipAddress: x.ipAddress,
-          }),
-        ),
+      const items = Array.isArray(data.items) ? data.items : [];
+      const mapped = items.map(
+        (x: Record<string, unknown>): AuditLogEntry => ({
+          id: (x.id as string) || "",
+          timestamp: (x.timestamp as string) || "",
+          userName: (x.userName as string) || "",
+          userRole: (x.userRole as string) || "",
+          action: (x.action as AuditEventType) || "view",
+          entityType: (x.entityType as string) || "",
+          entityId: (x.entityId as string) || "",
+          description: (x.description as string) || "",
+          ipAddress: (x.ipAddress as string) || "",
+        }),
       );
-      setAuditTotal(data.total ?? 0);
-      setAuditPage(data.page ?? p);
+      const nextEvents = mapped.length > 0 ? mapped : mockAuditEvents;
+      setAuditEvents(nextEvents);
+      setAuditTotal(data.total ?? nextEvents.length);
+      setAuditPage(data.page ?? page);
     } catch (err) {
-      console.error("Error fetching audit logs:", err);
+      console.error("Failed to load audit logs", err);
+      // keep mock events so the UI still has content
+      setAuditEvents(mockAuditEvents);
+      setAuditTotal(mockAuditEvents.length);
     } finally {
       setAuditLoading(false);
     }
-  }
+  };
 
-  // load audit logs when the Audit tab is opened the first time
   useEffect(() => {
-    if (activeView === "audit") {
-      fetchAuditLogs(1, auditFilters);
-    }
+    fetchAuditLogs(auditPage, auditFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView]);
-
-  const menuItems = [
-    {
-      id: "analytics" as AdminView,
-      label: "Analytics Dashboard",
-      icon: BarChart3,
-    },
-    { id: "users" as AdminView, label: "User Management", icon: Users },
-    {
-      id: "patients" as AdminView,
-      label: "Patient Records",
-      icon: Stethoscope,
-    },
-    { id: "system" as AdminView, label: "System Health", icon: Activity },
-    { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
-    { id: "audit" as AdminView, label: "Audit Log", icon: Activity },
-  ];
+  }, [auditPage, auditFilters]);
 
   return (
     <DashboardLayout
       user={user}
       onLogout={onLogout}
+      onShowNotifications={onShowNotifications}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={(v) => setActiveView(v as AdminView)}
-      onShowNotifications={onShowNotifications}
+      onViewChange={(view) => setActiveView(view)}
     >
       {activeView === "analytics" && <AnalyticsDashboard />}
       {activeView === "users" && <UserManagement />}
@@ -142,30 +175,27 @@ export function AdminDashboard({
           loading={auditLoading}
           totalCount={auditTotal}
           page={auditPage}
-          pageSize={auditPageSize}
-          onPageChange={(p) => fetchAuditLogs(p, auditFilters)}
-          onRefresh={() => fetchAuditLogs(1, auditFilters)}
+          pageSize={20}
+          onPageChange={(page) => setAuditPage(page)}
+          onRefresh={() => fetchAuditLogs(auditPage, auditFilters)}
           onFilterChange={(f) => {
             setAuditFilters(f);
+            setAuditPage(1);
             fetchAuditLogs(1, f);
           }}
           initialSearch={auditFilters.search}
           initialActionFilter={auditFilters.action}
         />
       )}
+
     </DashboardLayout>
   );
 }
 
-// ---------- existing dashboards below (unchanged apart from imports) ----------
-
 function AnalyticsDashboard() {
   return (
     <div className="space-y-6">
-      <h2 className="text-gray-900">Analytics Dashboard</h2>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="bg-blue-100 p-3 rounded-lg">
@@ -224,16 +254,12 @@ function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-gray-900 mb-4">Daily Appointments</h3>
           <div className="h-64 flex items-end justify-between gap-2">
             {[45, 62, 58, 71, 68, 85, 92].map((value, idx) => (
-              <div
-                key={idx}
-                className="flex-1 flex flex-col items-center gap-2"
-              >
+              <div key={idx} className="flex-1 flex flex-col items-center gap-2">
                 <div
                   className="w-full bg-blue-600 rounded-t-lg transition-all hover:bg-blue-700"
                   style={{ height: `${(value / 100) * 100}%` }}
@@ -250,21 +276,9 @@ function AnalyticsDashboard() {
           <h3 className="text-gray-900 mb-4">System Usage</h3>
           <div className="space-y-4">
             {[
-              {
-                label: "Patient Records Access",
-                value: 87,
-                color: "bg-blue-600",
-              },
-              {
-                label: "Appointment Scheduling",
-                value: 72,
-                color: "bg-green-600",
-              },
-              {
-                label: "Prescription Management",
-                value: 64,
-                color: "bg-purple-600",
-              },
+              { label: "Patient Records Access", value: 87, color: "bg-blue-600" },
+              { label: "Appointment Scheduling", value: 72, color: "bg-green-600" },
+              { label: "Prescription Management", value: 64, color: "bg-purple-600" },
               { label: "Lab Results Entry", value: 58, color: "bg-orange-600" },
             ].map((item, idx) => (
               <div key={idx}>
@@ -284,7 +298,6 @@ function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Recent Activity */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-gray-900 mb-4">Recent System Activity</h3>
         <div className="space-y-3">
@@ -314,10 +327,7 @@ function AnalyticsDashboard() {
               time: "1 hour ago",
             },
           ].map((activity, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-            >
+            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
                 <div className="text-gray-900">
                   {activity.user} {activity.action.toLowerCase()}
@@ -333,18 +343,6 @@ function AnalyticsDashboard() {
   );
 }
 
-interface UserRecord {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  status: "Active" | "Inactive";
-  department: string;
-  phone?: string;
-  lastActive: string;
-  createdAt: string;
-}
-
 interface NewUserFormData {
   name: string;
   email: string;
@@ -358,22 +356,30 @@ interface UserTableRow {
   name: string;
   role: string;
   email: string;
-  status: string;
+  status: "Active" | "Inactive";
+  department: string;
+  phone?: string;
+  lastActive: string;
+  createdAt: string;
 }
+
+type UserRecord = UserTableRow;
 
 type RoleFilter =
   | "all"
-  | "Administrator"
-  | "Doctor"
-  | "Nurse"
-  | "Reception"
-  | "Clinician"
-  | "Patient";
+  | "admin"
+  | "doctor"
+  | "nurse"
+  | "reception"
+  | "clinician"
+  | "patient";
 
 type StatusFilter = "all" | "Active" | "Inactive";
 
 function UserManagement() {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [showEditUserForm, setShowEditUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [newUser, setNewUser] = useState<NewUserFormData>({
     name: "",
     email: "",
@@ -384,8 +390,24 @@ function UserManagement() {
   const [users, setUsers] = useState<UserTableRow[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const [filters, setFilters] = useState<{
+    search: string;
+    role: RoleFilter;
+    status: StatusFilter;
+  }>({
+    search: "",
+    role: "all",
+    status: "all",
+  });
+  const [sortBy, setSortBy] = useState<keyof UserTableRow>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const roleOptions: { label: string; value: string }[] = [
     { label: "Administrator", value: "admin" },
@@ -396,13 +418,100 @@ function UserManagement() {
     { label: "Patient", value: "patient" },
   ];
 
+  const renderStatusPill = (status: "Active" | "Inactive") => {
+    const base = "px-3 py-1 rounded-full text-xs font-medium";
+    return (
+      <span
+        className={`${base} ${status === "Active" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-800"}`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  const formatDate = (iso: string) => {
+    let date: Date;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const [yearStr, monthStr, dayStr] = iso.split("-");
+      date = new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr));
+    } else {
+      date = new Date(iso);
+    }
+
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const handleDownloadPdf = () => {
+    if (!reportRef.current) return;
+
+    const popup = window.open("", "_blank", "width=900,height=1100,noopener");
+    if (!popup) {
+      alert("Please allow pop-ups to download the PDF report.");
+      return;
+    }
+    const reportHtml = reportRef.current.innerHTML;
+    popup.document.open();
+    popup.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>User Records Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; background: #ffffff; }
+            h1 { margin: 0 0 12px 0; }
+            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; }
+            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+            .pill-active { background: #dcfce7; color: #166534; }
+            .pill-inactive { background: #fef3c7; color: #92400e; }
+          </style>
+        </head>
+        <body>${reportHtml}</body>
+      </html>`);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => popup.print(), 100);
+  };
+
+  const exportCsv = () => {
+    const headers = ["Name", "Role", "Department", "Email", "Status", "Last Active"];
+    const rows = sortedUsers.map((u) => [
+      u.name,
+      u.role,
+      u.department,
+      u.email,
+      u.status,
+      formatDate(u.lastActive),
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "users.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const stats = useMemo(() => {
     const active = users.filter((u) => u.status === "Active").length;
     const inactive = users.length - active;
     const now = new Date();
     const createdThisMonth = users.filter((u) => {
       const d = new Date(u.createdAt);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
     }).length;
     return { total: users.length, active, inactive, createdThisMonth };
   }, [users]);
@@ -417,9 +526,51 @@ function UserManagement() {
           .includes(term),
       )
       .filter((u) => (filters.role === "all" ? true : u.role === filters.role))
-      .filter((u) => (filters.status === "all" ? true : u.status === filters.status))
+      .filter((u) =>
+        filters.status === "all" ? true : u.status === filters.status,
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [users, filters]);
+
+  const sortUsers = (list: UserRecord[]) => {
+    const copy = [...list];
+    copy.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      let av = a[sortBy] as unknown as string | number;
+      let bv = b[sortBy] as unknown as string | number;
+      if (sortBy === "lastActive" || sortBy === "createdAt") {
+        av = new Date(String(av)).getTime();
+        bv = new Date(String(bv)).getTime();
+      }
+      if (typeof av === "string" && typeof bv === "string") {
+        return av.localeCompare(bv) * dir;
+      }
+      if (typeof av === "number" && typeof bv === "number") {
+        return (av - bv) * dir;
+      }
+      return 0;
+    });
+    return copy;
+  };
+
+  const sortedUsers = sortUsers(filteredUsers);
+
+  const total = sortedUsers.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedUsers.slice(start, start + pageSize);
+  }, [sortedUsers, currentPage, pageSize]);
+
+  const toggleSort = (field: keyof UserTableRow) => {
+    if (sortBy === field) {
+      setSortDir((d: "asc" | "desc") => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortDir("asc");
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -431,7 +582,7 @@ function UserManagement() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setFormError(null);
@@ -444,15 +595,23 @@ function UserManagement() {
       role: newUser.role,
     })
       .then((created) => {
+        const createdAt = created.createdAt || new Date().toISOString();
+        const lastActive = created.lastActive || created.updatedAt || createdAt;
         setFormSuccess("User created successfully.");
         setUsers((prev) => [
           ...prev,
           {
             id: created.id || created._id || created.email,
-            name: created.name,
+            name:
+              created.name ||
+              `${created.firstName || ""} ${created.lastName || ""}`.trim(),
             email: created.email,
-            role: created.role,
+            role: created.role || newUser.role,
             status: "Active",
+            department: created.department || created.specialty || "General",
+            phone: created.phone || created.phoneNumber || "",
+            createdAt,
+            lastActive,
           },
         ]);
         setNewUser({
@@ -464,52 +623,113 @@ function UserManagement() {
         });
         setShowAddUserForm(false);
       })
-      .catch(async (err: any) => {
-        try {
-          const text = await err.text();
-          setFormError(text || "Failed to create user.");
-        } catch {
-          setFormError("Failed to create user.");
+      .catch(async (err: unknown) => {
+        if (err instanceof Response) {
+          try {
+            const text = await err.text();
+            setFormError(text || "Failed to create user.");
+            return;
+          } catch (parseErr) {
+            console.error("Failed to parse error response", parseErr);
+          }
         }
+        if (err instanceof Error) {
+          setFormError(err.message || "Failed to create user.");
+          return;
+        }
+        setFormError("Failed to create user.");
       })
       .finally(() => setSubmitting(false));
   };
 
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === editingUser.id ? { ...u, ...editingUser } : u)),
+    );
+    setShowEditUserForm(false);
+  };
+
+  type RawUser = {
+    id?: string;
+    _id?: string;
+    email?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+    active?: boolean;
+    department?: string;
+    specialty?: string;
+    phone?: string;
+    phoneNumber?: string;
+    createdAt?: string;
+    created_at?: string;
+    lastActive?: string;
+    last_active?: string;
+    updatedAt?: string;
+  };
+
+  const mapUser = useCallback((u: RawUser): UserRecord => {
+    const createdAt = u.createdAt || u.created_at || new Date().toISOString();
+    const lastActive =
+      u.lastActive || u.last_active || u.updatedAt || u.createdAt || createdAt;
+    return {
+      id: u.id || u._id || u.email || crypto.randomUUID(),
+      name: u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim(),
+      email: u.email || "",
+      role: (u.role as UserRecord["role"]) || "doctor",
+      status: u.active === false ? "Inactive" : "Active",
+      department: u.department || u.specialty || "General",
+      phone: u.phone || u.phoneNumber || "",
+      createdAt,
+      lastActive,
+    };
+  }, []);
+
   useEffect(() => {
-    setLoadingUsers(true);
+    let isActive = true;
     getUsers()
-      .then((data) => {
+      .then((data: RawUser[] | { items?: RawUser[] }) => {
+        if (!isActive) return;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.items)
-            ? data.items
+            ? data.items ?? []
             : [];
-        setUsers(
-          list.map((u: any) => ({
-            id: u.id || u._id || u.email,
-            name: u.name,
-            email: u.email,
-            role: u.role,
-            status: "Active",
-          })),
-        );
+        setUsers(list.map(mapUser));
       })
-      .catch(async (err: any) => {
-        try {
-          const text = await err.text();
-          setFormError(text || "Failed to load users.");
-        } catch {
-          setFormError("Failed to load users.");
+      .catch(async (err: unknown) => {
+        if (!isActive) return;
+        if (err instanceof Response) {
+          try {
+            const text = await err.text();
+            setLoadError(text || "Failed to load users");
+            return;
+          } catch (parseErr) {
+            console.error("Failed to parse error response", parseErr);
+          }
         }
+        if (err instanceof Error) {
+          setLoadError(err.message || "Failed to load users");
+          return;
+        }
+        setLoadError("Failed to load users");
       })
-      .finally(() => setLoadingUsers(false));
-  }, []);
+      .finally(() => {
+        if (isActive) setLoadingUsers(false);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [mapUser]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-gray-900">User Records</h2>
+          <h2 className="text-gray-900">User Management</h2>
           <p className="text-gray-500 text-sm">
             Manage users, roles, and export auditable reports.
           </p>
@@ -521,6 +741,13 @@ function UserManagement() {
           >
             <Download className="w-5 h-5" />
             Download PDF Report
+          </button>
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="w-5 h-5" />
+            Export CSV
           </button>
           <button
             onClick={() => setShowAddUserForm(true)}
@@ -535,22 +762,30 @@ function UserManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Total users</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.total}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Across all roles</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Active</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.active}
+          </div>
           <div className="text-xs text-green-600 mt-1">Eligible to log in</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Inactive</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.inactive}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.inactive}
+          </div>
           <div className="text-xs text-amber-600 mt-1">Require review</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Created this month</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.createdThisMonth}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.createdThisMonth}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Newly provisioned</div>
         </div>
       </div>
@@ -562,7 +797,10 @@ function UserManagement() {
             <input
               type="text"
               value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, search: e.target.value }));
+                setPage(1);
+              }}
               placeholder="Search by name, email, role, department"
               className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -573,12 +811,19 @@ function UserManagement() {
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={filters.role}
-              onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value as RoleFilter }))}
+              onChange={(e) => {
+                setFilters((f) => ({
+                  ...f,
+                  role: e.target.value as RoleFilter,
+                }));
+                setPage(1);
+              }}
               className="bg-transparent focus:outline-none text-gray-700"
             >
+              <option value="all">All roles</option>
               {roleOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r === "all" ? "All roles" : r}
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>
@@ -588,7 +833,13 @@ function UserManagement() {
             <ShieldCheck className="w-4 h-4 text-gray-400" />
             <select
               value={filters.status}
-              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as StatusFilter }))}
+              onChange={(e) => {
+                setFilters((f) => ({
+                  ...f,
+                  status: e.target.value as StatusFilter,
+                }));
+                setPage(1);
+              }}
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All statuses</option>
@@ -599,29 +850,94 @@ function UserManagement() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {loadError}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {formError && (
+          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {formError}
+          </div>
+        )}
+        {formSuccess && (
+          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
+            {formSuccess}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 text-gray-700">Name</th>
-                <th className="text-left py-3 px-4 text-gray-700">Role</th>
-                <th className="text-left py-3 px-4 text-gray-700">Department</th>
-                <th className="text-left py-3 px-4 text-gray-700">Email</th>
-                <th className="text-left py-3 px-4 text-gray-700">Status</th>
-                <th className="text-left py-3 px-4 text-gray-700">Last active</th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("name")} className="flex items-center gap-1">
+                    <span>Name</span>
+                    {sortBy === "name" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("role")} className="flex items-center gap-1">
+                    <span>Role</span>
+                    {sortBy === "role" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("department")} className="flex items-center gap-1">
+                    <span>Department</span>
+                    {sortBy === "department" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("email")} className="flex items-center gap-1">
+                    <span>Email</span>
+                    {sortBy === "email" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("status")} className="flex items-center gap-1">
+                    <span>Status</span>
+                    {sortBy === "status" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
+                <th className="text-left py-3 px-4 text-gray-700">
+                  <button type="button" onClick={() => toggleSort("lastActive")} className="flex items-center gap-1">
+                    <span>Last active</span>
+                    {sortBy === "lastActive" && <span className="text-xs">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((userRow) => (
+              {loadingUsers && (
+                <tr className="border-t border-gray-200">
+                  <td className="py-4 px-6 text-gray-600" colSpan={6}>
+                    Loading users...
+                  </td>
+                </tr>
+              )}
+              {!loadingUsers && filteredUsers.length === 0 && (
+                <tr className="border-t border-gray-200">
+                  <td className="py-4 px-6 text-gray-600" colSpan={6}>
+                    No users match your filters.
+                  </td>
+                </tr>
+              )}
+              {pagedUsers.map((userRow) => (
                 <tr key={userRow.id} className="border-t border-gray-200">
-                  <td className="py-3 px-4 text-gray-900 font-medium">{userRow.name}</td>
+                  <td className="py-3 px-4 text-gray-900 font-medium">
+                    {userRow.name}
+                  </td>
                   <td className="py-3 px-4">
                     <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                      {userRow.role}
+                      {roleOptions.find((r) => r.value === userRow.role)
+                        ?.label || userRow.role}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-gray-600">{userRow.department}</td>
+                  <td className="py-3 px-4 text-gray-600">
+                    {userRow.department}
+                  </td>
                   <td className="py-3 px-4 text-gray-600">
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-gray-400" />
@@ -634,12 +950,54 @@ function UserManagement() {
                       </div>
                     )}
                   </td>
-                  <td className="py-3 px-4">{renderStatusPill(userRow.status)}</td>
-                  <td className="py-3 px-4 text-gray-600">{formatDate(userRow.lastActive)}</td>
+                  <td className="py-3 px-4">
+                    {renderStatusPill(userRow.status)}
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">
+                    {formatDate(userRow.lastActive)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 border-t border-gray-200 bg-gray-50">
+          <div className="text-sm text-gray-600">
+            Showing {Math.min((page - 1) * pageSize + 1, total)}-
+            {Math.min(page * pageSize, total)} of {total}
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-600">Rows per page</label>
+            <select
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(parseInt(e.target.value, 10));
+                setPage(1);
+              }}
+            >
+              {[5, 10, 20, 50].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1">
+              <button
+                className="px-2 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-50"
+                onClick={() => setPage((p: number) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm text-gray-700 px-2">{page} / {totalPages}</span>
+              <button
+                className="px-2 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-50"
+                onClick={() => setPage((p: number) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -648,7 +1006,7 @@ function UserManagement() {
         style={{ position: "absolute", left: "-9999px", top: 0 }}
         aria-hidden
       >
-        <h1>User Records Report</h1>
+        <h1>User Management Report</h1>
         <div className="summary">
           <div className="card">
             <p className="muted">Total users</p>
@@ -686,7 +1044,9 @@ function UserManagement() {
                 <td>{u.department}</td>
                 <td>{u.email}</td>
                 <td>
-                  <span className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}>
+                  <span
+                    className={`pill ${u.status === "Active" ? "pill-active" : "pill-inactive"}`}
+                  >
                     {u.status}
                   </span>
                 </td>
@@ -818,12 +1178,110 @@ function UserManagement() {
           </div>
         </div>
       )}
+
+      {showEditUserForm && editingUser && (
+        <div
+          onClick={() => setShowEditUserForm(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl shadow-lg w-full max-w-md"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
+              <button onClick={() => setShowEditUserForm(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <select
+                    value={editingUser.role}
+                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  >
+                    <option value="Administrator">Administrator</option>
+                    <option value="Doctor">Doctor</option>
+                    <option value="Nurse">Nurse</option>
+                    <option value="Reception">Reception</option>
+                    <option value="Clinician">Clinician</option>
+                    <option value="Patient">Patient</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={editingUser.department}
+                    onChange={(e) => setEditingUser({ ...editingUser, department: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={editingUser.phone || ""}
+                  onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={editingUser.status}
+                  onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value as UserRecord["status"] })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShowEditUserForm(false)} className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 type PatientStatus = "Active" | "Follow-up" | "Discharged";
 type PatientRisk = "High" | "Medium" | "Low";
+
+type PatientForm = {
+  name: string;
+  gender: string;
+  phone: string;
+  email: string;
+  address: string;
+  allergies: string;
+};
 
 interface PatientRow {
   id: string;
@@ -843,89 +1301,131 @@ interface PatientRow {
 
 function PatientRecordsAdmin() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>(
-    "all",
-  );
+  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>("all");
   const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
-  const reportRef = useRef<HTMLDivElement>(null);
-
-  const [patients] = useState<PatientRow[]>([
+  const mockPatients: PatientRow[] = [
     {
-      id: "P-2026-001",
-      name: "Alemayehu Girma",
+      id: "P-1001",
+      name: "Alemu Bekele",
       age: 45,
-      gender: "Male",
+      gender: "male",
       bloodType: "O+",
-      phone: "+251 911 200 001",
-      email: "alemayehu.g@example.com",
-      address: "Bole, Addis Ababa",
+      phone: "555-2001",
+      email: "alemu.bekele@example.com",
+      address: "Addis Ababa",
       status: "Active",
+      risk: "Medium",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+      primaryCondition: "Hypertension",
+      allergies: "None",
+    },
+    {
+      id: "P-1002",
+      name: "Liya Tesfaye",
+      age: 32,
+      gender: "female",
+      bloodType: "A+",
+      phone: "555-2002",
+      email: "liya.tesfaye@example.com",
+      address: "Adama",
+      status: "Follow-up",
       risk: "High",
-      lastVisit: "2026-01-12",
-      primaryCondition: "Type 2 Diabetes",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      primaryCondition: "Diabetes",
       allergies: "Penicillin",
     },
     {
-      id: "P-2026-002",
-      name: "Sara Mohammed",
-      age: 28,
-      gender: "Female",
-      bloodType: "A+",
-      phone: "+251 911 200 002",
-      email: "sara.m@example.com",
-      address: "Kirkos, Addis Ababa",
-      status: "Active",
-      risk: "Medium",
-      lastVisit: "2026-01-08",
-      primaryCondition: "Asthma",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-003",
-      name: "Daniel Bekele",
-      age: 62,
-      gender: "Male",
-      bloodType: "B+",
-      phone: "+251 911 200 003",
-      email: "daniel.b@example.com",
-      address: "Yeka, Addis Ababa",
-      status: "Follow-up",
-      risk: "High",
-      lastVisit: "2026-01-05",
-      primaryCondition: "Coronary Artery Disease",
-      allergies: "Sulfa drugs",
-    },
-    {
-      id: "P-2026-004",
-      name: "Hana Tesfaye",
-      age: 33,
-      gender: "Female",
-      bloodType: "AB+",
-      phone: "+251 911 200 004",
-      email: "hana.t@example.com",
-      address: "Lideta, Addis Ababa",
-      status: "Active",
-      risk: "Low",
-      lastVisit: "2026-01-15",
-      primaryCondition: "Routine Check-up",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-005",
-      name: "Mulu Habte",
+      id: "P-1003",
+      name: "Samuel Girma",
       age: 54,
-      gender: "Female",
-      bloodType: "O-",
-      phone: "+251 911 200 005",
-      email: "mulu.h@example.com",
-      address: "Arada, Addis Ababa",
+      gender: "male",
+      bloodType: "B-",
+      phone: "555-2003",
+      email: "samuel.girma@example.com",
+      address: "Hawassa",
       status: "Discharged",
-      risk: "Medium",
-      lastVisit: "2026-01-02",
-      primaryCondition: "Post-surgery follow-up",
+      risk: "Low",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
+      primaryCondition: "Post-op recovery",
       allergies: "Latex",
     },
-  ]);
+  ];
+
+  const [patients, setPatients] = useState<PatientRow[]>(mockPatients);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<PatientForm>({
+    name: "",
+    gender: "",
+    phone: "",
+    email: "",
+    address: "",
+    allergies: "",
+  });
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  type PatientDoc = Partial<PatientRow> & {
+    _id?: string;
+    id?: string;
+    dob?: string;
+    address?: string;
+    contact?: { phone?: string; email?: string };
+    medicalHistory?: string[];
+    allergies?: string[];
+    updatedAt?: string;
+    createdAt?: string;
+    bloodType?: string;
+    gender?: string;
+    name?: string;
+  };
+
+  const mapPatient = (doc: PatientDoc): PatientRow => {
+    const age = doc.dob
+      ? Math.max(0, new Date().getFullYear() - new Date(doc.dob).getFullYear())
+      : 0;
+    const allergiesStr = Array.isArray(doc.allergies)
+      ? doc.allergies.join(", ") || "None"
+      : "None";
+    const risk: PatientRisk = doc.allergies && doc.allergies.length > 0 ? "Medium" : "Low";
+    return {
+      id: doc._id || doc.id || "",
+      name: doc.name || "Unnamed",
+      age,
+      gender: doc.gender || "-",
+      bloodType: doc.bloodType || "-",
+      phone: doc.contact?.phone || "-",
+      email: doc.contact?.email || "-",
+      address: doc.address || "-",
+      status: "Active",
+      risk,
+      lastVisit: doc.updatedAt || doc.createdAt || "",
+      primaryCondition: doc.medicalHistory?.[0] || "N/A",
+      allergies: allergiesStr,
+    };
+  };
+
+  const loadPatients = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getPatients({ q: search, limit: 100 });
+      const items = (data as { items?: PatientDoc[] }).items ?? (data as PatientDoc[]);
+      const mapped = items.map(mapPatient);
+      setPatients(mapped.length > 0 ? mapped : mockPatients);
+    } catch (err: unknown) {
+      console.error("Failed to load patients", err);
+      setError("Failed to load patients; showing sample records.");
+      setPatients(mockPatients);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const stats = useMemo(() => {
     const total = patients.length;
@@ -944,7 +1444,9 @@ function PatientRecordsAdmin() {
           .toLowerCase()
           .includes(term),
       )
-      .filter((p) => (statusFilter === "all" ? true : p.status === statusFilter))
+      .filter((p) =>
+        statusFilter === "all" ? true : p.status === statusFilter,
+      )
       .filter((p) => (riskFilter === "all" ? true : p.risk === riskFilter))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [patients, search, statusFilter, riskFilter]);
@@ -970,7 +1472,10 @@ function PatientRecordsAdmin() {
     });
   };
 
-  const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
+  const renderPill = (
+    label: string,
+    tone: "blue" | "amber" | "red" | "green",
+  ) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
     const map = {
       blue: "bg-blue-100 text-blue-700",
@@ -979,6 +1484,40 @@ function PatientRecordsAdmin() {
       green: "bg-green-100 text-green-700",
     } as const;
     return <span className={`${base} ${map[tone]}`}>{label}</span>;
+  };
+
+  const handleAddPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: form.name,
+        gender: form.gender || "other",
+        contact: { phone: form.phone, email: form.email },
+        address: form.address,
+        allergies: form.allergies
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+      };
+      const created = await api.createPatient(payload);
+      setPatients((prev) => [mapPatient(created as PatientDoc), ...prev]);
+      setShowAdd(false);
+      setForm({ name: "", gender: "", phone: "", email: "", address: "", allergies: "" });
+    } catch (err: unknown) {
+      alert("Could not create patient. Check permissions and try again.");
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this patient record?")) return;
+    try {
+      await api.deletePatient(id);
+      setPatients((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: unknown) {
+      alert("Could not delete patient. Check permissions and try again.");
+      console.error(err);
+    }
   };
 
   const handleDownloadPdf = () => {
@@ -990,37 +1529,33 @@ function PatientRecordsAdmin() {
       return;
     }
 
-    // Set the document title
-    popup.document.title = "Patient Records Report";
-
-    // Inject styles using DOM APIs instead of raw HTML
-    const styleElement = popup.document.createElement("style");
-    styleElement.textContent = `
-      body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-      h1 { margin: 0 0 12px 0; }
-      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-      .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
-      .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
-      th { background: #f1f5f9; }
-      .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
-      .pill-high { background: #fee2e2; color: #b91c1c; }
-      .pill-medium { background: #fef3c7; color: #b45309; }
-      .pill-low { background: #e0f2fe; color: #0c4a6e; }
-      .pill-status { background: #e2e8f0; color: #0f172a; }
-    `;
-    popup.document.head.appendChild(styleElement);
-
-    // Clone the existing report content into the popup safely
-    const container = popup.document.createElement("div");
-    const clonedReport = popup.document.importNode
-      ? popup.document.importNode(reportRef.current, true)
-      : (reportRef.current.cloneNode(true) as HTMLElement);
-    container.appendChild(clonedReport);
-    popup.document.body.appendChild(container);
+    const reportHtml = reportRef.current.innerHTML;
+    popup.document.open();
+    popup.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Patient Records Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; background: #ffffff; }
+            h1 { margin: 0 0 12px 0; }
+            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+            th { background: #f1f5f9; }
+            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+            .pill-high { background: #fee2e2; color: #b91c1c; }
+            .pill-medium { background: #fef3c7; color: #b45309; }
+            .pill-low { background: #e0f2fe; color: #0c4a6e; }
+            .pill-status { background: #e2e8f0; color: #0f172a; }
+          </style>
+        </head>
+        <body>${reportHtml}</body>
+      </html>`);
+    popup.document.close();
     popup.focus();
-    popup.print();
+    setTimeout(() => popup.print(), 100);
   };
 
   return (
@@ -1029,10 +1564,18 @@ function PatientRecordsAdmin() {
         <div>
           <h2 className="text-gray-900">Patient Records</h2>
           <p className="text-gray-500 text-sm">
-            Track patient profiles, risk, follow-ups, and export an auditable PDF snapshot.
+            Track patient profiles, risk, follow-ups, and export an auditable
+            PDF snapshot.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Patient
+          </button>
           <button
             onClick={handleDownloadPdf}
             className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
@@ -1043,25 +1586,47 @@ function PatientRecordsAdmin() {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
+          Loading patients...
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Total patients</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.total}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.total}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Across all statuses</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Active</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.active}</div>
-          <div className="text-xs text-green-600 mt-1">Currently under care</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.active}
+          </div>
+          <div className="text-xs text-green-600 mt-1">
+            Currently under care
+          </div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">Follow-ups due</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.followUp}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.followUp}
+          </div>
           <div className="text-xs text-blue-600 mt-1">Need scheduling</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
           <div className="text-gray-500 text-sm">High-risk</div>
-          <div className="text-2xl font-semibold text-gray-900">{stats.highRisk}</div>
+          <div className="text-2xl font-semibold text-gray-900">
+            {stats.highRisk}
+          </div>
           <div className="text-xs text-red-600 mt-1">Monitor closely</div>
         </div>
       </div>
@@ -1085,7 +1650,9 @@ function PatientRecordsAdmin() {
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | PatientStatus)}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as "all" | PatientStatus)
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All statuses</option>
@@ -1099,7 +1666,9 @@ function PatientRecordsAdmin() {
             <ShieldCheck className="w-4 h-4 text-gray-400" />
             <select
               value={riskFilter}
-              onChange={(e) => setRiskFilter(e.target.value as "all" | PatientRisk)}
+              onChange={(e) =>
+                setRiskFilter(e.target.value as "all" | PatientRisk)
+              }
               className="bg-transparent focus:outline-none text-gray-700"
             >
               <option value="all">All risk levels</option>
@@ -1112,18 +1681,102 @@ function PatientRecordsAdmin() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {formError && (
-          <div className="bg-red-50 text-red-700 px-4 py-3 text-sm">
-            {formError}
-          </div>
-        )}
-        {formSuccess && (
-          <div className="bg-green-50 text-green-800 px-4 py-3 text-sm">
-            {formSuccess}
-          </div>
-        )}
         <table className="w-full">
           <thead className="bg-gray-50">
+            <tr>
+              <th>Patient ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Risk</th>
+              <th>Condition</th>
+              <th>Last visit</th>
+              <th>Contact</th>
+              <th className="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-600" colSpan={7}>
+                  No patients match your filters.
+                </td>
+              </tr>
+            )}
+            {filtered.map((p) => (
+              <tr key={p.id} className="border-t border-gray-200">
+                <td className="py-4 px-6 text-gray-900">{p.id}</td>
+                <td className="py-4 px-6 text-gray-900 font-medium">
+                  {p.name}
+                </td>
+                <td className="py-4 px-6">
+                  {renderPill(
+                    p.status,
+                    p.status === "Active"
+                      ? "green"
+                      : p.status === "Follow-up"
+                        ? "amber"
+                        : "red",
+                  )}
+                </td>
+                <td className="py-4 px-6">
+                  {renderPill(
+                    p.risk,
+                    p.risk === "High"
+                      ? "red"
+                      : p.risk === "Medium"
+                        ? "amber"
+                        : "blue",
+                  )}
+                </td>
+                <td className="py-4 px-6 text-gray-700">
+                  {p.primaryCondition}
+                </td>
+                <td className="py-4 px-6 text-gray-700">
+                  {formatDate(p.lastVisit)}
+                </td>
+                <td className="py-4 px-6 text-gray-600">
+                  {p.email} | {p.phone}
+                </td>
+                <td className="py-4 px-6 text-right">
+                  <button
+                    onClick={() => handleDelete(p.id)}
+                    className="text-red-600 hover:text-red-700 text-sm font-medium"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        ref={reportRef}
+        style={{ position: "absolute", left: "-9999px", top: 0 }}
+        aria-hidden
+      >
+        <h1>Patient Records Report</h1>
+        <div className="summary">
+          <div className="card">
+            <p className="muted">Total patients</p>
+            <strong>{stats.total}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Active</p>
+            <strong>{stats.active}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">Follow-ups</p>
+            <strong>{stats.followUp}</strong>
+          </div>
+          <div className="card">
+            <p className="muted">High risk</p>
+            <strong>{stats.highRisk}</strong>
+          </div>
+        </div>
+        <table>
+          <thead>
             <tr>
               <th>Patient ID</th>
               <th>Name</th>
@@ -1135,43 +1788,141 @@ function PatientRecordsAdmin() {
             </tr>
           </thead>
           <tbody>
-            {loadingUsers && (
-              <tr className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-600" colSpan={5}>
-                  Loading users...
-                </td>
-              </tr>
-            )}
-            {!loadingUsers && users.length === 0 && (
-              <tr className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-600" colSpan={5}>
-                  No users created yet. Use "Add New User" to create one.
-                </td>
-              </tr>
-            )}
-            {users.map((userRow) => (
-              <tr key={userRow.id} className="border-t border-gray-200">
-                <td className="py-4 px-6 text-gray-900">{userRow.name}</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {roleOptions.find((r) => r.value === userRow.role)?.label ||
-                      userRow.role}
+            {filtered.map((p: PatientRow) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>{p.name}</td>
+                <td>
+                  <span
+                    className={`pill ${
+                      p.status === "Active"
+                        ? "pill-status"
+                        : p.status === "Follow-up"
+                          ? "pill-amber"
+                          : "pill-red"
+                    }`}
+                  >
+                    {p.status}
                   </span>
                 </td>
-                <td className="pill pill-status">{p.status}</td>
-                <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>
-                  {p.risk}
+                <td>
+                  <span
+                    className={`pill ${
+                      p.risk === "High"
+                        ? "pill-high"
+                        : p.risk === "Medium"
+                          ? "pill-medium"
+                          : "pill-low"
+                    }`}
+                  >
+                    {p.risk}
+                  </span>
                 </td>
                 <td>{p.primaryCondition}</td>
                 <td>{formatDate(p.lastVisit)}</td>
-                <td>
-                  {p.email} | {p.phone}
-                </td>
+                <td>{p.email} | {p.phone}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">New Patient</h3>
+                <p className="text-sm text-gray-500">Create a patient shell record.</p>
+              </div>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close add patient form"
+              >
+                ×
+              </button>
+            </div>
+            <form className="space-y-3" onSubmit={handleAddPatient}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Name</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Gender</label>
+                  <select
+                    value={form.gender}
+                    onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Phone</label>
+                  <input
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Address</label>
+                <input
+                  value={form.address}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Allergies (comma separated)</label>
+                <input
+                  value={form.allergies}
+                  onChange={(e) => setForm((f) => ({ ...f, allergies: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Peanuts, Latex"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(false)}
+                  className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Save Patient
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
