@@ -9,8 +9,8 @@ export interface Appointment {
   id: string;
   patientName: string;
   doctorName: string;
-  date: string; 
-  time: string; 
+  date: string;
+  time: string;
   type: string;
   status: 'Scheduled' | 'Completed' | 'Cancelled' | 'In Progress';
   notes?: string;
@@ -66,7 +66,6 @@ const initialAppointments: Appointment[] = [
 ];
 
 function formatTimeHHmmToAMPM(hhmm: string) {
-  // "14:00" -> "02:00 PM"
   const [hStr, mStr] = hhmm.split(':');
   const h = Number(hStr);
   const m = Number(mStr);
@@ -83,6 +82,13 @@ function nextId(existing: Appointment[]) {
     .filter((n) => !Number.isNaN(n));
   const max = nums.length ? Math.max(...nums) : 0;
   return `APT${String(max + 1).padStart(3, '0')}`;
+}
+
+function statusBadge(status: Appointment['status']) {
+  if (status === 'Completed') return 'bg-green-100 text-green-700';
+  if (status === 'In Progress') return 'bg-blue-100 text-blue-700';
+  if (status === 'Cancelled') return 'bg-red-100 text-red-700';
+  return 'bg-gray-200 text-gray-700';
 }
 
 export function Appointments({ userRole }: AppointmentsProps) {
@@ -152,13 +158,14 @@ export function Appointments({ userRole }: AppointmentsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header: stack on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-gray-900">Appointments</h2>
 
         {(userRole === 'doctor' || userRole === 'nurse') && (
           <button
             onClick={() => setShowNewModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Schedule Appointment
@@ -166,7 +173,8 @@ export function Appointments({ userRole }: AppointmentsProps) {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        {/* Filters: already good, just keep padding responsive */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -198,17 +206,22 @@ export function Appointments({ userRole }: AppointmentsProps) {
               key={appointment.id}
               className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-blue-100 p-3 rounded-lg">
+              {/* ✅ MOBILE FIX: stack left/right on small screens */}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                {/* Left section */}
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className="bg-blue-100 p-3 rounded-lg shrink-0">
                     <User className="w-6 h-6 text-blue-600" />
                   </div>
 
-                  <div>
-                    <div className="text-gray-900 mb-1">{appointment.patientName}</div>
+                  <div className="min-w-0">
+                    <div className="text-gray-900 mb-1 font-medium break-words">
+                      {appointment.patientName}
+                    </div>
                     <div className="text-gray-600 text-sm mb-2">{appointment.type}</div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                    {/* ✅ better wrap on mobile */}
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         {appointment.date}
@@ -221,29 +234,25 @@ export function Appointments({ userRole }: AppointmentsProps) {
                     </div>
 
                     {appointment.notes && (
-                      <div className="mt-2 text-sm text-gray-600">
+                      <div className="mt-2 text-sm text-gray-600 break-words">
                         Notes: {appointment.notes}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      appointment.status === 'Completed'
-                        ? 'bg-green-100 text-green-700'
-                        : appointment.status === 'In Progress'
-                        ? 'bg-blue-100 text-blue-700'
-                        : appointment.status === 'Cancelled'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {appointment.status}
-                  </span>
+                {/* Right section */}
+                <div className="flex flex-col gap-3 sm:items-end">
+                  {/* status */}
+                  <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                    <span className={`px-3 py-1 rounded-full text-sm ${statusBadge(appointment.status)}`}>
+                      {appointment.status}
+                    </span>
+                    <span className="text-xs text-gray-400">#{appointment.id}</span>
+                  </div>
 
-                  <div className="flex gap-3">
+                  {/* ✅ actions wrap instead of overflowing */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:justify-end">
                     <button
                       onClick={() => openDetails(appointment)}
                       className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
@@ -275,9 +284,7 @@ export function Appointments({ userRole }: AppointmentsProps) {
           ))}
 
           {filteredAppointments.length === 0 && (
-            <div className="text-gray-500 text-sm text-center py-10">
-              No appointments found.
-            </div>
+            <div className="text-gray-500 text-sm text-center py-10">No appointments found.</div>
           )}
         </div>
       </div>
@@ -357,7 +364,6 @@ function NewAppointmentModal({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!patientName.trim() || !date || !time) return;
 
     onCreate({
@@ -442,7 +448,7 @@ function NewAppointmentModal({
           />
         </div>
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             type="submit"
             className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
@@ -458,9 +464,7 @@ function NewAppointmentModal({
           </button>
         </div>
 
-        <p className="text-xs text-gray-500">
-          Demo mode: this saves to local state only (no backend yet).
-        </p>
+        <p className="text-xs text-gray-500">Demo mode: this saves to local state only (no backend yet).</p>
       </form>
     </ModalShell>
   );
@@ -514,7 +518,7 @@ function RescheduleModal({
           />
         </div>
 
-        <div className="flex gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             type="submit"
             className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
@@ -544,7 +548,7 @@ function AppointmentDetailsModal({
   return (
     <ModalShell title="Appointment Details" onClose={onClose}>
       <div className="space-y-3 text-sm">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <div className="text-gray-500">Appointment ID</div>
             <div className="text-gray-900">{appointment.id}</div>
