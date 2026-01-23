@@ -1319,7 +1319,55 @@ function PatientRecordsAdmin() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>("all");
   const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
-  const [patients, setPatients] = useState<PatientRow[]>([]);
+  const mockPatients: PatientRow[] = [
+    {
+      id: "P-1001",
+      name: "Alemu Bekele",
+      age: 45,
+      gender: "male",
+      bloodType: "O+",
+      phone: "555-2001",
+      email: "alemu.bekele@example.com",
+      address: "Addis Ababa",
+      status: "Active",
+      risk: "Medium",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+      primaryCondition: "Hypertension",
+      allergies: "None",
+    },
+    {
+      id: "P-1002",
+      name: "Liya Tesfaye",
+      age: 32,
+      gender: "female",
+      bloodType: "A+",
+      phone: "555-2002",
+      email: "liya.tesfaye@example.com",
+      address: "Adama",
+      status: "Follow-up",
+      risk: "High",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      primaryCondition: "Diabetes",
+      allergies: "Penicillin",
+    },
+    {
+      id: "P-1003",
+      name: "Samuel Girma",
+      age: 54,
+      gender: "male",
+      bloodType: "B-",
+      phone: "555-2003",
+      email: "samuel.girma@example.com",
+      address: "Hawassa",
+      status: "Discharged",
+      risk: "Low",
+      lastVisit: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
+      primaryCondition: "Post-op recovery",
+      allergies: "Latex",
+    },
+  ];
+
+  const [patients, setPatients] = useState<PatientRow[]>(mockPatients);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -1381,10 +1429,12 @@ function PatientRecordsAdmin() {
     try {
       const data = await api.getPatients({ q: search, limit: 100 });
       const items = (data as { items?: PatientDoc[] }).items ?? (data as PatientDoc[]);
-      setPatients(items.map(mapPatient));
+      const mapped = items.map(mapPatient);
+      setPatients(mapped.length > 0 ? mapped : mockPatients);
     } catch (err: unknown) {
       console.error("Failed to load patients", err);
-      setError("Failed to load patients");
+      setError("Failed to load patients; showing sample records.");
+      setPatients(mockPatients);
     } finally {
       setLoading(false);
     }

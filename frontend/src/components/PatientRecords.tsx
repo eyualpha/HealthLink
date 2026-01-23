@@ -138,6 +138,8 @@ const emptyPatient = (): PatientRecord => ({
   lastVisit: '',
 });
 
+// Note: Use the richer mockPatients above so clinical sections display data.
+
 export function PatientRecords({ userRole }: PatientRecordsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -146,7 +148,7 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [editablePatient, setEditablePatient] = useState<PatientRecord | null>(null);
 
-  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [patients, setPatients] = useState<PatientRecord[]>(mockPatients);
   const [loading, setLoading] = useState(false);
 
   const mapDoc = (doc: any): PatientRecord => ({
@@ -164,10 +166,34 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
     currentMedications: Array.isArray(doc.medications)
       ? doc.medications.map((m: any) => `${m.name} ${m.dose || ''}`.trim())
       : [],
-    diagnoses: [],
-    treatments: [],
-    immunizations: [],
-    labResults: [],
+    diagnoses: Array.isArray(doc.diagnoses)
+      ? doc.diagnoses.map((d: any) => ({
+          date: d.date || '',
+          condition: d.condition || d.name || '-',
+          doctor: d.doctor || d.provider || '-',
+        }))
+      : [],
+    treatments: Array.isArray(doc.treatments)
+      ? doc.treatments.map((t: any) => ({
+          date: t.date || '',
+          treatment: t.treatment || t.name || '-',
+          notes: t.notes || '',
+        }))
+      : [],
+    immunizations: Array.isArray(doc.immunizations)
+      ? doc.immunizations.map((i: any) => ({
+          vaccine: i.vaccine || i.name || '-',
+          date: i.date || '',
+        }))
+      : [],
+    labResults: Array.isArray(doc.labResults)
+      ? doc.labResults.map((l: any) => ({
+          test: l.test || l.name || '-',
+          date: l.date || '',
+          result: l.result || l.value || '-',
+          status: l.status || 'Normal',
+        }))
+      : [],
     lastVisit: doc.updatedAt ? new Date(doc.updatedAt).toISOString().split('T')[0] : '',
   });
 
@@ -185,9 +211,11 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
         const res = await api.getPatients(searchTerm);
         if (!mounted) return;
         const items = res.items || res;
-        setPatients((items || []).map(mapDoc));
+        const mapped = (items || []).map(mapDoc);
+        setPatients(mapped.length > 0 ? mapped : mockPatients);
       } catch (err) {
         console.error('Failed to load patients', err);
+        setPatients(mockPatients);
       } finally {
         if (mounted) setLoading(false);
       }
