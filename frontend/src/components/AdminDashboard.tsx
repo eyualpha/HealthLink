@@ -1057,38 +1057,42 @@ function PatientRecordsAdmin() {
 
   const handleDownloadPdf = () => {
     if (!reportRef.current) return;
-    const printable = reportRef.current.innerHTML;
+
     const popup = window.open("", "_blank", "width=900,height=1100,noopener");
     if (!popup) {
       alert("Please allow pop-ups to download the PDF report.");
       return;
     }
-    popup.document.write(`
-      <html>
-        <head>
-          <title>Patient Records Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-            h1 { margin: 0 0 12px 0; }
-            .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-            .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
-            .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
-            th { background: #f1f5f9; }
-            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
-            .pill-high { background: #fee2e2; color: #b91c1c; }
-            .pill-medium { background: #fef3c7; color: #b45309; }
-            .pill-low { background: #e0f2fe; color: #0c4a6e; }
-            .pill-status { background: #e2e8f0; color: #0f172a; }
-          </style>
-        </head>
-        <body>
-          ${printable}
-        </body>
-      </html>
-    `);
-    popup.document.close();
+
+    // Set the document title
+    popup.document.title = "Patient Records Report";
+
+    // Inject styles using DOM APIs instead of raw HTML
+    const styleElement = popup.document.createElement("style");
+    styleElement.textContent = `
+      body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+      h1 { margin: 0 0 12px 0; }
+      .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+      .card { border: 1px solid #e5e7eb; padding: 12px; border-radius: 10px; background: #f8fafc; }
+      .muted { color: #64748b; font-size: 12px; margin: 0 0 4px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; text-align: left; }
+      th { background: #f1f5f9; }
+      .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; }
+      .pill-high { background: #fee2e2; color: #b91c1c; }
+      .pill-medium { background: #fef3c7; color: #b45309; }
+      .pill-low { background: #e0f2fe; color: #0c4a6e; }
+      .pill-status { background: #e2e8f0; color: #0f172a; }
+    `;
+    popup.document.head.appendChild(styleElement);
+
+    // Clone the existing report content into the popup safely
+    const container = popup.document.createElement("div");
+    const clonedReport = popup.document.importNode
+      ? popup.document.importNode(reportRef.current, true)
+      : (reportRef.current.cloneNode(true) as HTMLElement);
+    container.appendChild(clonedReport);
+    popup.document.body.appendChild(container);
     popup.focus();
     popup.print();
   };
