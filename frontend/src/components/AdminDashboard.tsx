@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
 import {
-  BarChart3,
   Users,
   Calendar,
   Activity,
@@ -17,19 +16,17 @@ import {
   Phone,
   FileText,
   Stethoscope,
+  Plus,
 } from "lucide-react";
 import { AdminAuditLogPage } from "./audit";
 import type { AuditLogEntry, AuditEventType } from "./audit";
 import api from "../lib/api";
-
 
 interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
   onShowNotifications: () => void;
   accessToken?: string;
-  
-  // accessToken: string; // 👈 add this so we can call the backend
 }
 
 type AdminView =
@@ -40,115 +37,98 @@ type AdminView =
   | "reports"
   | "audit";
 
-export function AdminDashboard({
-  user,
-  onLogout,
-  onShowNotifications,
-  accessToken,
-}: AdminDashboardProps) {
-  const [activeView, setActiveView] = useState<AdminView>("analytics");
-  const session = api.getSession();
-  const authToken = accessToken || session?.accessToken;
+export function AdminDashboard({ user, onLogout, onShowNotifications }: AdminDashboardProps) {
+  const [activeView, setActiveView] = useState<AdminView>("patients");
 
-  // --- audit log state (for the Audit tab) ---
+  // Audit log state (mocked for now)
   const [auditEvents, setAuditEvents] = useState<AuditLogEntry[]>([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [auditPage, setAuditPage] = useState(1);
-  const [auditPageSize] = useState(10);
   const [auditTotal, setAuditTotal] = useState(0);
-  const [auditFilters, setAuditFilters] = useState<{
-    search: string;
-    action: AuditEventType | "all";
-  }>({ search: "", action: "all" });
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilters, setAuditFilters] = useState<{ search: string; action: AuditEventType | "all" }>(
+    { search: "", action: "all" },
+  );
 
-  async function fetchAuditLogs(
-    p: number = auditPage,
-    f: { search: string; action: AuditEventType | "all" } = auditFilters,
-  ) {
+  const menuItems = [
+    { id: "analytics", label: "Overview", icon: TrendingUp },
+    { id: "users", label: "User Management", icon: Users },
+    { id: "patients", label: "Patient Records", icon: Stethoscope },
+    { id: "audit", label: "Audit Log", icon: ShieldCheck },
+    { id: "system", label: "System Health", icon: Activity },
+    { id: "reports", label: "Reports", icon: FileText },
+  ] satisfies { id: AdminView; label: string; icon: typeof Users }[];
+
+  const fetchAuditLogs = async (_page: number, filters = auditFilters) => {
     setAuditLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(auditPageSize),
-        search: f.search,
-        action: f.action,
+      // Mock data until backend wiring is ready
+      const sample: AuditLogEntry[] = [
+        {
+          id: "a-1",
+          timestamp: new Date().toISOString(),
+          userName: "Admin User",
+          userRole: "admin",
+          action: "login",
+          description: "Logged in to admin dashboard",
+        },
+        {
+          id: "a-2",
+          timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          userName: "Admin User",
+          userRole: "admin",
+          action: "create",
+          entityType: "patient",
+          entityId: "P-1001",
+          description: "Created patient record",
+        },
+        {
+          id: "a-3",
+          timestamp: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+          userName: "Doctor Tadesse",
+          userRole: "doctor",
+          action: "update",
+          entityType: "prescription",
+          entityId: "RX-77",
+          description: "Updated prescription dosage",
+        },
+      ];
+
+      const filtered = sample.filter((e) => {
+        const matchesAction = filters.action === "all" || e.action === filters.action;
+        const haystack = [
+          e.userName,
+          e.userRole,
+          e.entityType,
+          e.entityId,
+          e.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const matchesSearch = haystack.includes(filters.search.toLowerCase().trim());
+        return matchesAction && matchesSearch;
       });
 
-      const res = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:5000"
-        }/audit-logs?${params.toString()}`,
-        {
-          headers: authToken
-            ? {
-                Authorization: `Bearer ${authToken}`,
-              }
-            : {},
-        },
-      );
-
-      if (!res.ok) {
-        console.error("Failed to fetch audit logs:", await res.text());
-        return;
-      }
-
-      const data = await res.json();
-
-      setAuditEvents(
-        (data.items || []).map((x: any): AuditLogEntry => ({
-          id: x.id,
-          timestamp: x.timestamp,
-          userName: x.userName,
-          userRole: x.userRole,
-          action: x.action,
-          entityType: x.entityType,
-          entityId: x.entityId,
-          description: x.description,
-          ipAddress: x.ipAddress,
-        })),
-      );
-      setAuditTotal(data.total ?? 0);
-      setAuditPage(data.page ?? p);
-    } catch (err) {
-      console.error("Error fetching audit logs:", err);
+      setAuditEvents(filtered);
+      setAuditTotal(filtered.length);
     } finally {
       setAuditLoading(false);
     }
-  }
+  };
 
-  // load audit logs when the Audit tab is opened the first time
   useEffect(() => {
-    if (activeView === "audit") {
-      fetchAuditLogs(1, auditFilters);
-    }
+    fetchAuditLogs(auditPage, auditFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView]);
-
-  const menuItems = [
-    {
-      id: "analytics" as AdminView,
-      label: "Analytics Dashboard",
-      icon: BarChart3,
-    },
-    { id: "users" as AdminView, label: "User Management", icon: Users },
-    {
-      id: "patients" as AdminView,
-      label: "Patient Records",
-      icon: Stethoscope,
-    },
-    { id: "system" as AdminView, label: "System Health", icon: Activity },
-    { id: "reports" as AdminView, label: "Reports", icon: TrendingUp },
-    { id: "audit" as AdminView, label: "Audit Log", icon: Activity },
-  ];
+  }, [auditPage, auditFilters]);
 
   return (
     <DashboardLayout
       user={user}
       onLogout={onLogout}
+      onShowNotifications={onShowNotifications}
       menuItems={menuItems}
       activeView={activeView}
-      onViewChange={(v) => setActiveView(v as AdminView)}
-      onShowNotifications={onShowNotifications}
+      onViewChange={(view) => setActiveView(view)}
     >
       {activeView === "analytics" && <AnalyticsDashboard />}
       {activeView === "users" && <UserManagement />}
@@ -161,11 +141,12 @@ export function AdminDashboard({
           loading={auditLoading}
           totalCount={auditTotal}
           page={auditPage}
-          pageSize={auditPageSize}
-          onPageChange={(p) => fetchAuditLogs(p, auditFilters)}
-          onRefresh={() => fetchAuditLogs(1, auditFilters)}
+          pageSize={20}
+          onPageChange={(page) => setAuditPage(page)}
+          onRefresh={() => fetchAuditLogs(auditPage, auditFilters)}
           onFilterChange={(f) => {
             setAuditFilters(f);
+            setAuditPage(1);
             fetchAuditLogs(1, f);
           }}
           initialSearch={auditFilters.search}
@@ -549,7 +530,7 @@ function UserManagement() {
     popup.document.write(`
       <html>
         <head>
-          <title>User Records Report</title>
+          <title>User Management Report</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
             h1 { margin: 0 0 12px 0; }
@@ -597,7 +578,7 @@ function UserManagement() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-gray-900">User Records</h2>
+          <h2 className="text-gray-900">User Management</h2>
           <p className="text-gray-500 text-sm">
             Manage users, roles, and export auditable reports.
           </p>
@@ -736,7 +717,7 @@ function UserManagement() {
         style={{ position: "absolute", left: "-9999px", top: 0 }}
         aria-hidden
       >
-        <h1>User Records Report</h1>
+        <h1>User Management Report</h1>
         <div className="summary">
           <div className="card">
             <p className="muted">Total users</p>
@@ -913,6 +894,15 @@ function UserManagement() {
 type PatientStatus = "Active" | "Follow-up" | "Discharged";
 type PatientRisk = "High" | "Medium" | "Low";
 
+type PatientForm = {
+  name: string;
+  gender: string;
+  phone: string;
+  email: string;
+  address: string;
+  allergies: string;
+};
+
 interface PatientRow {
   id: string;
   name: string;
@@ -931,89 +921,82 @@ interface PatientRow {
 
 function PatientRecordsAdmin() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>(
-    "all",
-  );
+  const [statusFilter, setStatusFilter] = useState<"all" | PatientStatus>("all");
   const [riskFilter, setRiskFilter] = useState<"all" | PatientRisk>("all");
+  const [patients, setPatients] = useState<PatientRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState<PatientForm>({
+    name: "",
+    gender: "",
+    phone: "",
+    email: "",
+    address: "",
+    allergies: "",
+  });
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const [patients] = useState<PatientRow[]>([
-    {
-      id: "P-2026-001",
-      name: "Alemayehu Girma",
-      age: 45,
-      gender: "Male",
-      bloodType: "O+",
-      phone: "+251 911 200 001",
-      email: "alemayehu.g@example.com",
-      address: "Bole, Addis Ababa",
+  type PatientDoc = Partial<PatientRow> & {
+    _id?: string;
+    id?: string;
+    dob?: string;
+    contact?: { phone?: string; email?: string };
+    medicalHistory?: string[];
+    allergies?: string[];
+    updatedAt?: string;
+    createdAt?: string;
+    bloodType?: string;
+    gender?: string;
+    name?: string;
+  };
+
+  const mapPatient = (doc: PatientDoc): PatientRow => {
+    const age = doc.dob
+      ? Math.max(0, new Date().getFullYear() - new Date(doc.dob).getFullYear())
+      : 0;
+    const allergiesStr = Array.isArray(doc.allergies)
+      ? doc.allergies.join(", ") || "None"
+      : "None";
+    const risk: PatientRisk = doc.allergies && doc.allergies.length > 0
+      ? "Medium"
+      : "Low";
+    return {
+      id: doc._id || doc.id || "",
+      name: doc.name || "Unnamed",
+      age,
+      gender: doc.gender || "-",
+      bloodType: doc.bloodType || "-",
+      phone: doc.contact?.phone || "-",
+      email: doc.contact?.email || "-",
+      address: doc.address || "-",
       status: "Active",
-      risk: "High",
-      lastVisit: "2026-01-12",
-      primaryCondition: "Type 2 Diabetes",
-      allergies: "Penicillin",
-    },
-    {
-      id: "P-2026-002",
-      name: "Sara Mohammed",
-      age: 28,
-      gender: "Female",
-      bloodType: "A+",
-      phone: "+251 911 200 002",
-      email: "sara.m@example.com",
-      address: "Kirkos, Addis Ababa",
-      status: "Active",
-      risk: "Medium",
-      lastVisit: "2026-01-08",
-      primaryCondition: "Asthma",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-003",
-      name: "Daniel Bekele",
-      age: 62,
-      gender: "Male",
-      bloodType: "B+",
-      phone: "+251 911 200 003",
-      email: "daniel.b@example.com",
-      address: "Yeka, Addis Ababa",
-      status: "Follow-up",
-      risk: "High",
-      lastVisit: "2026-01-05",
-      primaryCondition: "Coronary Artery Disease",
-      allergies: "Sulfa drugs",
-    },
-    {
-      id: "P-2026-004",
-      name: "Hana Tesfaye",
-      age: 33,
-      gender: "Female",
-      bloodType: "AB+",
-      phone: "+251 911 200 004",
-      email: "hana.t@example.com",
-      address: "Lideta, Addis Ababa",
-      status: "Active",
-      risk: "Low",
-      lastVisit: "2026-01-15",
-      primaryCondition: "Routine Check-up",
-      allergies: "None",
-    },
-    {
-      id: "P-2026-005",
-      name: "Mulu Habte",
-      age: 54,
-      gender: "Female",
-      bloodType: "O-",
-      phone: "+251 911 200 005",
-      email: "mulu.h@example.com",
-      address: "Arada, Addis Ababa",
-      status: "Discharged",
-      risk: "Medium",
-      lastVisit: "2026-01-02",
-      primaryCondition: "Post-surgery follow-up",
-      allergies: "Latex",
-    },
-  ]);
+      risk,
+      lastVisit: doc.updatedAt || doc.createdAt || "",
+      primaryCondition: doc.medicalHistory?.[0] || "N/A",
+      allergies: allergiesStr,
+    };
+  };
+
+  const loadPatients = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getPatients({ q: search, limit: 100 });
+      const items = (data as { items?: PatientDoc[] }).items ?? (data as PatientDoc[]);
+      setPatients(items.map(mapPatient));
+    } catch (err) {
+      console.error("Failed to load patients", err);
+      setError("Failed to load patients");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const stats = useMemo(() => {
     const total = patients.length;
@@ -1038,11 +1021,13 @@ function PatientRecordsAdmin() {
   }, [patients, search, statusFilter, riskFilter]);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    iso
+      ? new Date(iso).toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "-";
 
   const renderPill = (label: string, tone: "blue" | "amber" | "red" | "green") => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
@@ -1053,6 +1038,40 @@ function PatientRecordsAdmin() {
       green: "bg-green-100 text-green-700",
     } as const;
     return <span className={`${base} ${map[tone]}`}>{label}</span>;
+  };
+
+  const handleAddPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: form.name,
+        gender: form.gender || "other",
+        contact: { phone: form.phone, email: form.email },
+        address: form.address,
+        allergies: form.allergies
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+      };
+      const created = await api.createPatient(payload);
+      setPatients((prev) => [mapPatient(created as PatientDoc), ...prev]);
+      setShowAdd(false);
+      setForm({ name: "", gender: "", phone: "", email: "", address: "", allergies: "" });
+    } catch (err) {
+      alert("Could not create patient. Check permissions and try again.");
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this patient record?")) return;
+    try {
+      await api.deletePatient(id);
+      setPatients((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      alert("Could not delete patient. Check permissions and try again.");
+      console.error(err);
+    }
   };
 
   const handleDownloadPdf = () => {
@@ -1104,6 +1123,13 @@ function PatientRecordsAdmin() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Patient
+          </button>
+          <button
             onClick={handleDownloadPdf}
             className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
@@ -1112,6 +1138,12 @@ function PatientRecordsAdmin() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -1193,10 +1225,17 @@ function PatientRecordsAdmin() {
                 <th className="text-left py-3 px-4 text-gray-700">Primary condition</th>
                 <th className="text-left py-3 px-4 text-gray-700">Last visit</th>
                 <th className="text-left py-3 px-4 text-gray-700">Contact</th>
+                <th className="text-left py-3 px-4 text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="py-6 text-center text-gray-500">
+                    Loading patients...
+                  </td>
+                </tr>
+              ) : filtered.map((p) => (
                 <tr key={p.id} className="border-t border-gray-200">
                   <td className="py-3 px-4 text-gray-900 font-medium">{p.id}</td>
                   <td className="py-3 px-4 text-gray-900">
@@ -1239,11 +1278,19 @@ function PatientRecordsAdmin() {
                       {p.phone}
                     </div>
                   </td>
+                  <td className="py-3 px-4 text-gray-700">
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      className="text-red-600 hover:text-red-700 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-500">
+                  <td colSpan={8} className="py-6 text-center text-gray-500">
                     No patients match the current filters.
                   </td>
                 </tr>
@@ -1297,7 +1344,9 @@ function PatientRecordsAdmin() {
                   {p.name} ({p.gender}, {p.age} yrs, {p.bloodType})
                 </td>
                 <td className="pill pill-status">{p.status}</td>
-                <td className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}>
+                <td
+                  className={`pill ${p.risk === "High" ? "pill-high" : p.risk === "Medium" ? "pill-medium" : "pill-low"}`}
+                >
                   {p.risk}
                 </td>
                 <td>{p.primaryCondition}</td>
@@ -1310,6 +1359,134 @@ function PatientRecordsAdmin() {
           </tbody>
         </table>
       </div>
+
+      {showAdd && (
+        <div
+          onClick={() => setShowAdd(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl shadow-lg w-full max-w-md"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Add Patient
+              </h3>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddPatient} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm((f: PatientForm) => ({ ...f, name: e.target.value }))}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Enter full name"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gender
+                  </label>
+                  <select
+                    value={form.gender}
+                    onChange={(e) => setForm((f: PatientForm) => ({ ...f, gender: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) => setForm((f: PatientForm) => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="+251 9XX XXX XXX"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f: PatientForm) => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="user@healthlink.et"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={(e) => setForm((f: PatientForm) => ({ ...f, address: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="City, area"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Allergies (comma separated)
+                </label>
+                <input
+                  type="text"
+                  value={form.allergies}
+                  onChange={(e) => setForm((f: PatientForm) => ({ ...f, allergies: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="Peanuts, Penicillin, etc."
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(false)}
+                  className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                >
+                  Add Patient
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

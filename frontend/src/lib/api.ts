@@ -66,9 +66,21 @@ export async function createAppointment(payload: any) {
   return res.json();
 }
 
-export async function getPatients(q = '') {
+export interface PatientQuery {
+  q?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function getPatients(query: PatientQuery | string = '') {
   const url = new URL(`${BASE}/patients`);
-  if (q) url.searchParams.set('q', q);
+  if (typeof query === 'string') {
+    if (query) url.searchParams.set('q', query);
+  } else {
+    if (query.q) url.searchParams.set('q', query.q);
+    if (query.page) url.searchParams.set('page', String(query.page));
+    if (query.limit) url.searchParams.set('limit', String(query.limit));
+  }
   const res = await fetch(url.toString(), { headers: getAuthHeaders() });
   if (!res.ok) throw res;
   return res.json();
@@ -96,6 +108,15 @@ export async function updatePatient(id: string, payload: any) {
   return res.json();
 }
 
+export async function deletePatient(id: string) {
+  const res = await fetch(`${BASE}/patients/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
 export default {
   login,
   logout,
@@ -105,4 +126,5 @@ export default {
   getPatients,
   createPatient,
   updatePatient,
+  deletePatient,
 };
