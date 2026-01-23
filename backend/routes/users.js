@@ -55,4 +55,9 @@ router.get(
   },
 );
 
+router.get("/", authenticateJWT, permitRoles(Roles.ADMIN), async (req, res) => {
+  const users = await User.find().select("_id name email role createdAt");
+  res.json(users);
+});
+
 export default router;
