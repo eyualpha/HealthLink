@@ -57,7 +57,7 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   const seededCreds: Array<{ role: UserRole; email: string; password: string }> = [
-    { role: 'admin', email: 'admin@localhost', password: 'Admin123!' },
+    { role: 'admin', email: 'admin@localhost', password: 'admin123!' },
     { role: 'doctor', email: 'doctor@localhost', password: 'Doctor123!' },
     { role: 'nurse', email: 'nurse@localhost', password: 'Nurse123!' },
     { role: 'reception', email: 'reception@localhost', password: 'Reception123!' },

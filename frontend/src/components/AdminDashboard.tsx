@@ -18,7 +18,8 @@ interface AdminDashboardProps {
   user: User;
   onLogout: () => void;
   onShowNotifications: () => void;
-  accessToken: string; 
+  
+accessToken: string; 
 }
 
 type AdminView = "analytics" | "users" | "system" | "reports" | "audit";
