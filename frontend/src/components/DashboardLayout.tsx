@@ -1,7 +1,13 @@
+Dtabase_Config_Structure
 import { useState } from "react";
 import { Activity, LogOut, Bell, Menu, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { User } from "../types";
+import { Bell } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { User } from '../types';
+import SideNav from './SideNav';
+main
 
 interface MenuItem<T extends string> {
   id: T;
@@ -33,6 +39,7 @@ export function DashboardLayout<T extends string>({
   onShowNotifications,
   children,
 }: DashboardLayoutProps<T>) {
+Dtabase_Config_Structure
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const Sidebar = (
@@ -174,6 +181,25 @@ export function DashboardLayout<T extends string>({
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                 </button>
               </div>
+  return (
+    <div className="min-h-screen">
+      <SideNav
+        user={user}
+        menuItems={menuItems as any}
+        activeView={activeView as string}
+        onViewChange={(v) => onViewChange(v as T)}
+        onEditProfile={onEditProfile}
+        onLogout={onLogout}
+      />
+
+      {/* Main (offset on md+ to account for fixed sidebar) */}
+      <div className="flex-1 flex flex-col md:ml-64">
+        <header className="bg-white border-b border-gray-200 px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-gray-900 text-xl font-semibold">Welcome, <button onClick={() => onEditProfile?.()} className="text-blue-600 hover:underline">{user.name}</button></h1>
+              <p className="text-gray-500">Manage your healthcare operations efficiently</p>
+main
             </div>
           </header>
 

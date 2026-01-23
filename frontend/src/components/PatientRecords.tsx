@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Plus, FileText, AlertCircle } from 'lucide-react';
 import { PatientRecordModal } from './PatientRecordModal';
+import * as api from '../lib/api';
 
 interface PatientRecordsProps {
   userRole: 'doctor' | 'nurse' | 'admin';
@@ -145,11 +146,57 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [editablePatient, setEditablePatient] = useState<PatientRecord | null>(null);
 
-  const filteredPatients = mockPatients.filter(
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const mapDoc = (doc: any): PatientRecord => ({
+    id: doc._id || doc.id || '',
+    name: doc.name || '—',
+    age: doc.dob ? Math.max(0, new Date().getFullYear() - new Date(doc.dob).getFullYear()) : 0,
+    gender: doc.gender || '',
+    bloodType: doc.bloodType || '-',
+    phone: doc.contact?.phone || '-',
+    email: doc.contact?.email || '',
+    address: doc.address || '',
+    emergencyContact: doc.emergencyContact || '',
+    allergies: doc.allergies || [],
+    medicalHistory: doc.medicalHistory || [],
+    currentMedications: Array.isArray(doc.medications)
+      ? doc.medications.map((m: any) => `${m.name} ${m.dose || ''}`.trim())
+      : [],
+    diagnoses: [],
+    treatments: [],
+    immunizations: [],
+    labResults: [],
+    lastVisit: doc.updatedAt ? new Date(doc.updatedAt).toISOString().split('T')[0] : '',
+  });
+
+  const filteredPatients = patients.filter(
     (patient) =>
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       patient.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await api.getPatients(searchTerm);
+        if (!mounted) return;
+        const items = res.items || res;
+        setPatients((items || []).map(mapDoc));
+      } catch (err) {
+        console.error('Failed to load patients', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, [searchTerm]);
 
   const handleAddNew = () => {
     setIsCreateMode(true);
@@ -179,14 +226,14 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="mb-6 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
             placeholder="Search by patient name or ID..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -206,7 +253,12 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
             </thead>
 
             <tbody>
-              {filteredPatients.map((patient) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-500">Loading...</td>
+                </tr>
+              ) : (
+                filteredPatients.map((patient) => (
                 <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-4 px-4 text-gray-900">{patient.id}</td>
                   <td className="py-4 px-4 text-gray-900">{patient.name}</td>
@@ -235,7 +287,8 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
                     </button>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
 
               {filteredPatients.length === 0 && (
                 <tr>
@@ -255,6 +308,20 @@ export function PatientRecords({ userRole }: PatientRecordsProps) {
           onClose={() => setShowModal(false)}
           userRole={userRole}
           isCreateMode={isCreateMode}
+          onSave={async (p, isCreate) => {
+            try {
+              if (isCreate) {
+                const created = await api.createPatient({ name: p.name, dob: p.age ? undefined : undefined, gender: p.gender, contact: { phone: p.phone, email: p.email }, address: p.address, allergies: p.allergies, medicalHistory: p.medicalHistory });
+                setPatients((prev) => [mapDoc(created), ...prev]);
+              } else {
+                const updated = await api.updatePatient(p.id, { name: p.name, gender: p.gender, contact: { phone: p.phone, email: p.email }, address: p.address, allergies: p.allergies, medicalHistory: p.medicalHistory });
+                setPatients((prev) => prev.map((it) => (it.id === updated._id ? mapDoc(updated) : it)));
+              }
+            } catch (err) {
+              console.error('Save patient failed', err);
+              throw err;
+            }
+          }}
         />
       )}
     </div>

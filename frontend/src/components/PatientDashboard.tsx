@@ -1,3 +1,4 @@
+Dtabase_Config_Structure
 import { useState } from "react";
 import type { User } from "../types";
 import { DashboardLayout } from "./DashboardLayout";
@@ -5,6 +6,15 @@ import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from "l
 import BookAppointmentModal from "./BookAppointmentModal";
 import EditableProfileModal from "./EditableProfileModal";
 import type { AppointmentForm } from "./BookAppointmentModal";
+import { useState } from 'react';
+import { useEffect } from 'react';
+import type { User } from '../types';
+import { DashboardLayout } from './DashboardLayout';
+import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'lucide-react';
+import BookAppointmentModal from './BookAppointmentModal';
+import EditableProfileModal from './EditableProfileModal';
+import type { AppointmentForm } from './BookAppointmentModal';
+main
 
 interface PatientDashboardProps {
   user: User;
@@ -18,6 +28,17 @@ export function PatientDashboard({ user, onLogout, onShowNotifications }: Patien
   const [activeView, setActiveView] = useState<PatientView>("overview");
   const [localUser, setLocalUser] = useState<User>(user);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [appointments, setAppointments] = useState<any[]>([]);
+
+  useEffect(() => {
+    // load my appointments from API if available
+    import('../lib/api').then((m) => {
+      m.getMyAppointments().then((data: any) => {
+        if (Array.isArray(data)) setAppointments(data);
+        else if (data.items) setAppointments(data.items);
+      }).catch(() => {});
+    });
+  }, []);
 
   const menuItems = [
     { id: "overview" as PatientView, label: "Overview", icon: Activity },
@@ -36,12 +57,18 @@ export function PatientDashboard({ user, onLogout, onShowNotifications }: Patien
       onEditProfile={() => setShowProfileModal(true)}
       onShowNotifications={onShowNotifications} // ✅ NEW (bell works now)
     >
+Dtabase_Config_Structure
       {activeView === "overview" && (
         <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />
       )}
       {activeView === "records" && <MyHealthRecords />}
       {activeView === "appointments" && <MyAppointments />}
       {activeView === "prescriptions" && <MyPrescriptions />}
+      {activeView === 'overview' && <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />}
+      {activeView === 'records' && <MyHealthRecords />}
+      {activeView === 'appointments' && <MyAppointments appointments={appointments} onBooked={(a)=>setAppointments(prev=>[...prev,a])} />}
+      {activeView === 'prescriptions' && <MyPrescriptions />}
+main
 
       {showProfileModal && (
         <EditableProfileModal
@@ -275,11 +302,49 @@ function MyHealthRecords() {
   );
 }
 
-function MyAppointments() {
+function MyAppointments({ appointments = [], onBooked }: { appointments?: any[]; onBooked?: (a:any)=>void }) {
   const [showBookModal, setShowBookModal] = useState(false);
 
+ Dtabase_Config_Structure
   const handleBookingSubmit = (data: AppointmentForm) => {
     console.log("Booked appointment:", data);
+
+  const handleBookingSubmit = async (data: AppointmentForm) => {
+    // Try to create on backend; if fails, fallback to optimistic local booking
+    try {
+      const api = await import('../lib/api');
+      const session = api.getSession();
+      const payload: any = {
+        // backend expects these fields; patientId is required
+        patientId: session?.user?.id,
+        // doctorId may not be available in demo data; frontend passes doctor name as fallback
+        // backend will validate doctorId (MongoId) — handle failure below
+        doctorId: undefined,
+        appointementDate: data.date,
+        appointementTime: data.time,
+        appointementType: data.type,
+        notes: data.reason,
+        status: 'scheduled',
+      };
+
+      const created = await api.createAppointment(payload).catch((e: any) => {
+        throw e;
+      });
+      if (onBooked) onBooked(created);
+    } catch (err) {
+      // fallback: append a local appointment representation so UI remains responsive
+      const local = {
+        _id: `local-${Date.now()}`,
+        doctor: data.doctor,
+        appointementType: data.type,
+        appointementDate: data.date,
+        appointementTime: data.time,
+        notes: data.reason,
+        status: 'scheduled',
+      };
+      if (onBooked) onBooked(local);
+    }
+main
     setShowBookModal(false);
   };
 

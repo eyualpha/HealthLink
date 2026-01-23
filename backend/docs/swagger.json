@@ -1,0 +1,180 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "HealthLink API Documentation",
+    "version": "1.0.0",
+    "description": "Comprehensive API documentation for the HealthLink Capstone Project. This documentation covers Secure Auth, Appointments, Patient Records, and Prescription management with integrated RBAC (Role-Based Access Control)."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Development Server - Primary local testing environment"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Access Token required for all protected routes. Obtain this by logging in."
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new patient",
+        "description": "Creates a new user account with a default role of 'patient'. Validates email uniqueness and password strength.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "name"],
+                "properties": {
+                  "email": { "type": "string", "example": "user@example.com" },
+                  "password": { "type": "string", "minLength": 6, "example": "password123" },
+                  "name": { "type": "string", "example": "John Doe" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "User registered successfully and tokens issued" },
+          "400": { "description": "Validation error: Check email format or password length" },
+          "409": { "description": "Conflict: Email address already registered in the system" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login to get tokens",
+        "description": "Authenticates user credentials and returns both Access and Refresh tokens.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful - Tokens returned" },
+          "401": { "description": "Invalid credentials: Email or password incorrect" }
+        }
+      }
+    },
+    "/api/appointments": {
+      "get": {
+        "tags": ["Appointments"],
+        "summary": "List appointments",
+        "description": "Retrieves appointments based on roles. Patients see their own; Staff (Admin, Doctors) can view all or filter by ID.",
+        "parameters": [
+          { "name": "page", "in": "query", "description": "Pagination page number", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "description": "Number of items per page", "schema": { "type": "integer", "default": 25 } }
+        ],
+        "responses": {
+          "200": { "description": "List of appointments retrieved successfully" },
+          "403": { "description": "Forbidden: User does not have permission to view these records" }
+        }
+      },
+      "post": {
+        "tags": ["Appointments"],
+        "summary": "Create a new appointment",
+        "description": "Schedules a new medical appointment. Requires valid Patient and Doctor IDs.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patientId", "doctorId", "appointementDate", "appointementTime", "appointementType"],
+                "properties": {
+                  "patientId": { "type": "string", "description": "MongoDB ID of the patient" },
+                  "doctorId": { "type": "string", "description": "MongoDB ID of the doctor" },
+                  "appointementDate": { "type": "string", "format": "date-time", "example": "2024-12-01T10:00:00Z" },
+                  "appointementTime": { "type": "string", "example": "10:30 AM" },
+                  "appointementType": { "type": "string", "example": "Check-up" },
+                  "notes": { "type": "string", "description": "Optional medical notes" },
+                  "status": { "type": "string", "enum": ["scheduled", "completed", "canceled"], "default": "scheduled" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Appointment created and logged in audit trail" },
+          "400": { "description": "Validation error: Missing fields or invalid IDs" }
+        }
+      }
+    },
+    "/api/patients": {
+      "get": {
+        "tags": ["Patients"],
+        "summary": "Search or list patients",
+        "description": "Allows clinical staff to search through patient records using text search.",
+        "parameters": [
+          { "name": "q", "in": "query", "description": "Text search query for patient name or details", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Matching patient records returned" }
+        }
+      }
+    },
+    "/api/prescriptions": {
+      "post": {
+        "tags": ["Prescriptions"],
+        "summary": "Create a prescription",
+        "description": "Allows doctors to issue medications to patients. Requires an array of medication objects.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patientId", "doctorId", "medications", "instructions"],
+                "properties": {
+                  "patientId": { "type": "string" },
+                  "doctorId": { "type": "string" },
+                  "instructions": { "type": "string", "example": "Take after meals" },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string", "example": "Amoxicillin" },
+                        "dosage": { "type": "string", "example": "500mg" },
+                        "frequency": { "type": "string", "example": "Twice a day" },
+                        "duration": { "type": "string", "example": "7 days" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Prescription successfully created and issued" }
+        }
+      }
+    }
+  }
+}
