@@ -1,3 +1,11 @@
+Dtabase_Config_Structure
+import { useState } from "react";
+import type { User } from "../types";
+import { DashboardLayout } from "./DashboardLayout";
+import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from "lucide-react";
+import BookAppointmentModal from "./BookAppointmentModal";
+import EditableProfileModal from "./EditableProfileModal";
+import type { AppointmentForm } from "./BookAppointmentModal";
 import { useState } from 'react';
 import { useEffect } from 'react';
 import type { User } from '../types';
@@ -6,16 +14,18 @@ import { FileText, Calendar, Pill, User as UserIcon, Activity, Syringe } from 'l
 import BookAppointmentModal from './BookAppointmentModal';
 import EditableProfileModal from './EditableProfileModal';
 import type { AppointmentForm } from './BookAppointmentModal';
+main
 
 interface PatientDashboardProps {
   user: User;
   onLogout: () => void;
+  onShowNotifications: () => void; // ✅ NEW
 }
 
-type PatientView = 'overview' | 'records' | 'appointments' | 'prescriptions';
+type PatientView = "overview" | "records" | "appointments" | "prescriptions";
 
-export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
-  const [activeView, setActiveView] = useState<PatientView>('overview');
+export function PatientDashboard({ user, onLogout, onShowNotifications }: PatientDashboardProps) {
+  const [activeView, setActiveView] = useState<PatientView>("overview");
   const [localUser, setLocalUser] = useState<User>(user);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -31,10 +41,10 @@ export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
   }, []);
 
   const menuItems = [
-    { id: 'overview' as PatientView, label: 'Overview', icon: Activity },
-    { id: 'records' as PatientView, label: 'My Health Records', icon: FileText },
-    { id: 'appointments' as PatientView, label: 'My Appointments', icon: Calendar },
-    { id: 'prescriptions' as PatientView, label: 'My Prescriptions', icon: Pill },
+    { id: "overview" as PatientView, label: "Overview", icon: Activity },
+    { id: "records" as PatientView, label: "My Health Records", icon: FileText },
+    { id: "appointments" as PatientView, label: "My Appointments", icon: Calendar },
+    { id: "prescriptions" as PatientView, label: "My Prescriptions", icon: Pill },
   ];
 
   return (
@@ -45,11 +55,20 @@ export function PatientDashboard({ user, onLogout }: PatientDashboardProps) {
       activeView={activeView}
       onViewChange={(v) => setActiveView(v as PatientView)}
       onEditProfile={() => setShowProfileModal(true)}
+      onShowNotifications={onShowNotifications} // ✅ NEW (bell works now)
     >
+Dtabase_Config_Structure
+      {activeView === "overview" && (
+        <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />
+      )}
+      {activeView === "records" && <MyHealthRecords />}
+      {activeView === "appointments" && <MyAppointments />}
+      {activeView === "prescriptions" && <MyPrescriptions />}
       {activeView === 'overview' && <PatientOverview user={localUser} onEditProfile={() => setShowProfileModal(true)} />}
       {activeView === 'records' && <MyHealthRecords />}
       {activeView === 'appointments' && <MyAppointments appointments={appointments} onBooked={(a)=>setAppointments(prev=>[...prev,a])} />}
       {activeView === 'prescriptions' && <MyPrescriptions />}
+main
 
       {showProfileModal && (
         <EditableProfileModal
@@ -72,7 +91,12 @@ function PatientOverview({ user, onEditProfile }: { user: User; onEditProfile: (
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-gray-900">My Health Dashboard</h2>
-          <div className="text-sm text-gray-600">Welcome, <button onClick={onEditProfile} className="font-medium text-blue-600 hover:underline">{user.name}</button></div>
+          <div className="text-sm text-gray-600">
+            Welcome,{" "}
+            <button onClick={onEditProfile} className="font-medium text-blue-600 hover:underline">
+              {user.name}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -227,7 +251,9 @@ function MyHealthRecords() {
               <div className="text-gray-900">Type 2 Diabetes</div>
               <div className="text-gray-500 text-sm">Diagnosed: Jan 2021</div>
             </div>
-            <div className="text-gray-600 text-sm">Managing with medication and lifestyle changes</div>
+            <div className="text-gray-600 text-sm">
+              Managing with medication and lifestyle changes
+            </div>
           </div>
           <div className="p-4 bg-gray-50 rounded-lg">
             <div className="flex items-start justify-between mb-2">
@@ -279,6 +305,10 @@ function MyHealthRecords() {
 function MyAppointments({ appointments = [], onBooked }: { appointments?: any[]; onBooked?: (a:any)=>void }) {
   const [showBookModal, setShowBookModal] = useState(false);
 
+ Dtabase_Config_Structure
+  const handleBookingSubmit = (data: AppointmentForm) => {
+    console.log("Booked appointment:", data);
+
   const handleBookingSubmit = async (data: AppointmentForm) => {
     // Try to create on backend; if fails, fallback to optimistic local booking
     try {
@@ -314,6 +344,7 @@ function MyAppointments({ appointments = [], onBooked }: { appointments?: any[];
       };
       if (onBooked) onBooked(local);
     }
+main
     setShowBookModal(false);
   };
 
@@ -321,7 +352,10 @@ function MyAppointments({ appointments = [], onBooked }: { appointments?: any[];
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-gray-900">My Appointments</h2>
-        <button onClick={() => setShowBookModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+        <button
+          onClick={() => setShowBookModal(true)}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
           <Calendar className="w-5 h-5" />
           Book Appointment
         </button>
@@ -332,18 +366,18 @@ function MyAppointments({ appointments = [], onBooked }: { appointments?: any[];
         <div className="space-y-3">
           {[
             {
-              doctor: 'Dr. Abebe Kebede',
-              type: 'Follow-up Consultation',
-              date: 'Jan 16, 2024',
-              time: '09:30 AM',
-              location: 'Room 201',
+              doctor: "Dr. Abebe Kebede",
+              type: "Follow-up Consultation",
+              date: "Jan 16, 2024",
+              time: "09:30 AM",
+              location: "Room 201",
             },
             {
-              doctor: 'Dr. Solomon Tesfaye',
-              type: 'Annual Check-up',
-              date: 'Jan 22, 2024',
-              time: '02:00 PM',
-              location: 'Room 105',
+              doctor: "Dr. Solomon Tesfaye",
+              type: "Annual Check-up",
+              date: "Jan 22, 2024",
+              time: "02:00 PM",
+              location: "Room 105",
             },
           ].map((apt, idx) => (
             <div key={idx} className="border border-gray-200 rounded-lg p-4">
@@ -358,8 +392,12 @@ function MyAppointments({ appointments = [], onBooked }: { appointments?: any[];
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-blue-600 hover:text-blue-700 text-sm">Reschedule</button>
-                  <button className="text-red-600 hover:text-red-700 text-sm">Cancel</button>
+                  <button className="text-blue-600 hover:text-blue-700 text-sm">
+                    Reschedule
+                  </button>
+                  <button className="text-red-600 hover:text-red-700 text-sm">
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
@@ -378,12 +416,19 @@ function MyAppointments({ appointments = [], onBooked }: { appointments?: any[];
               </div>
               <div className="text-gray-500 text-sm">Dec 15, 2023</div>
             </div>
-            <button className="text-blue-600 hover:text-blue-700 text-sm">View Summary</button>
+            <button className="text-blue-600 hover:text-blue-700 text-sm">
+              View Summary
+            </button>
           </div>
         </div>
       </div>
+
       {showBookModal && (
-        <BookAppointmentModal open={showBookModal} onClose={() => setShowBookModal(false)} onSubmit={handleBookingSubmit} />
+        <BookAppointmentModal
+          open={showBookModal}
+          onClose={() => setShowBookModal(false)}
+          onSubmit={handleBookingSubmit}
+        />
       )}
     </div>
   );
@@ -399,20 +444,20 @@ function MyPrescriptions() {
         <div className="space-y-4">
           {[
             {
-              medication: 'Metformin',
-              dosage: '500mg',
-              frequency: 'Twice daily',
-              instructions: 'Take with meals',
-              prescribed: 'Jan 15, 2024',
-              refills: '2 remaining',
+              medication: "Metformin",
+              dosage: "500mg",
+              frequency: "Twice daily",
+              instructions: "Take with meals",
+              prescribed: "Jan 15, 2024",
+              refills: "2 remaining",
             },
             {
-              medication: 'Lisinopril',
-              dosage: '10mg',
-              frequency: 'Once daily',
-              instructions: 'Take in the morning',
-              prescribed: 'Jun 20, 2023',
-              refills: '1 remaining',
+              medication: "Lisinopril",
+              dosage: "10mg",
+              frequency: "Once daily",
+              instructions: "Take in the morning",
+              prescribed: "Jun 20, 2023",
+              refills: "1 remaining",
             },
           ].map((rx, idx) => (
             <div key={idx} className="border border-gray-200 rounded-lg p-4">
@@ -447,12 +492,18 @@ function MyPrescriptions() {
                   <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm mb-2 inline-block">
                     Active
                   </span>
-                  <div className="text-gray-500 text-sm">Prescribed: {rx.prescribed}</div>
+                  <div className="text-gray-500 text-sm">
+                    Prescribed: {rx.prescribed}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-3 border-t border-gray-200">
-                <button className="text-blue-600 hover:text-blue-700 text-sm">Request Refill</button>
-                <button className="text-gray-600 hover:text-gray-700 text-sm">View Details</button>
+                <button className="text-blue-600 hover:text-blue-700 text-sm">
+                  Request Refill
+                </button>
+                <button className="text-gray-600 hover:text-gray-700 text-sm">
+                  View Details
+                </button>
               </div>
             </div>
           ))}
