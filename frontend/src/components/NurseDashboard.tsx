@@ -126,7 +126,7 @@ function VitalSigns() {
       patientId: "P001",
       bp: "130/85",
       hr: "72",
-      temp: "36.8°C",
+      temp: "36.8 C",
       spo2: "98%",
       time: "09:15 AM",
     },
@@ -135,7 +135,7 @@ function VitalSigns() {
       patientId: "P002",
       bp: "120/80",
       hr: "68",
-      temp: "37.0°C",
+      temp: "37.0 C",
       spo2: "99%",
       time: "10:30 AM",
     },
@@ -144,7 +144,7 @@ function VitalSigns() {
       patientId: "P003",
       bp: "135/88",
       hr: "75",
-      temp: "36.5°C",
+      temp: "36.5 C",
       spo2: "97%",
       time: "11:45 AM",
     },
@@ -253,12 +253,12 @@ function VitalSigns() {
               />
             </div>
             <div>
-              <div className="text-gray-500 text-sm mb-1">Temperature (°C)</div>
+              <div className="text-gray-500 text-sm mb-1">Temperature (C)</div>
               <input
                 value={form.temp}
                 onChange={(e) => setForm((p) => ({ ...p, temp: e.target.value }))}
                 className="w-full border rounded-lg px-3 py-2"
-                placeholder="36.8°C"
+                placeholder="36.8 C"
               />
             </div>
           </div>
