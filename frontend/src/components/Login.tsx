@@ -143,12 +143,6 @@ export function Login({ onLogin }: LoginProps) {
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-blue-900 text-sm">
-            <strong>Demo Mode:</strong> Select a role and click Sign In to
-            explore the system
-          </p>
-        </div>
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
           <div className="text-gray-700 text-sm mb-2">
             Seeded demo credentials (click to autofill):
